@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import hashlib
 import math
-from inspect import signature
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -57,6 +57,8 @@ from .const import (
     SERVICE_FIELD_SHUFFLE,
     SERVICE_PRELOAD_MEDIA,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -146,9 +148,6 @@ class HADashboardPlayer(MediaPlayerEntity, RestoreEntity):
         self._last_feedback: datetime | None = None
         self._feedback_unsub = None
         self._feedback_timeout_seconds = 3.0
-        self._resolve_supports_entity_id = (
-            "entity_id" in signature(async_resolve_media).parameters
-        )
 
     async def async_added_to_hass(self) -> None:
         """Restore state on startup."""
@@ -218,9 +217,9 @@ class HADashboardPlayer(MediaPlayerEntity, RestoreEntity):
             self._attr_state = MediaPlayerState.PLAYING
         self.async_write_ha_state()
 
-    def media_play(self) -> None:
-        """Resume playback (sync wrapper)."""
-        self._run_coroutine_threadsafe(self.async_play())
+    async def async_media_play(self) -> None:
+        """Play via media service."""
+        await self.async_play()
 
     async def async_pause(self) -> None:
         """Pause playback."""
@@ -228,17 +227,17 @@ class HADashboardPlayer(MediaPlayerEntity, RestoreEntity):
             self._attr_state = MediaPlayerState.PAUSED
         self.async_write_ha_state()
 
-    def media_pause(self) -> None:
-        """Pause playback (sync wrapper)."""
-        self._run_coroutine_threadsafe(self.async_pause())
+    async def async_media_pause(self) -> None:
+        """Pause via media service."""
+        await self.async_pause()
 
     async def async_stop(self) -> None:
         """Stop playback and clear the screen."""
         await self.async_clear_screen()
 
-    def media_stop(self) -> None:
-        """Stop playback (sync wrapper)."""
-        self._run_coroutine_threadsafe(self.async_stop())
+    async def async_media_stop(self) -> None:
+        """Stop via media service."""
+        await self.async_stop()
 
     async def async_media_seek(self, position: float) -> None:
         """Seek to a position."""
@@ -246,27 +245,15 @@ class HADashboardPlayer(MediaPlayerEntity, RestoreEntity):
         self._attr_media_position_updated_at = datetime.now(timezone.utc)
         self.async_write_ha_state()
 
-    def media_seek(self, position: float) -> None:
-        """Seek to a position (sync wrapper)."""
-        self._run_coroutine_threadsafe(self.async_media_seek(position))
-
     async def async_set_volume_level(self, volume: float) -> None:
         """Set volume."""
         self._attr_volume_level = volume
         self.async_write_ha_state()
 
-    def set_volume_level(self, volume: float) -> None:
-        """Set volume (sync wrapper)."""
-        self._run_coroutine_threadsafe(self.async_set_volume_level(volume))
-
     async def async_mute_volume(self, mute: bool) -> None:
         """Mute the player."""
         self._attr_is_volume_muted = mute
         self.async_write_ha_state()
-
-    def mute_volume(self, mute: bool) -> None:
-        """Mute the player (sync wrapper)."""
-        self._run_coroutine_threadsafe(self.async_mute_volume(mute))
 
     async def async_set_repeat(self, repeat: str) -> None:
         """Set repeat mode."""
@@ -279,10 +266,6 @@ class HADashboardPlayer(MediaPlayerEntity, RestoreEntity):
         self._attr_repeat = normalized
         self.async_write_ha_state()
 
-    def set_repeat(self, repeat: str) -> None:
-        """Set repeat mode (sync wrapper)."""
-        self._run_coroutine_threadsafe(self.async_set_repeat(repeat))
-
     async def async_set_shuffle(self, shuffle: bool) -> None:
         """Enable/disable shuffle."""
         if not self._is_playlist():
@@ -290,10 +273,6 @@ class HADashboardPlayer(MediaPlayerEntity, RestoreEntity):
         else:
             self._attr_shuffle = shuffle
         self.async_write_ha_state()
-
-    def set_shuffle(self, shuffle: bool) -> None:
-        """Enable/disable shuffle (sync wrapper)."""
-        self._run_coroutine_threadsafe(self.async_set_shuffle(shuffle))
 
     async def async_play_media(self, media_type: str, media_id: str, **kwargs: Any) -> None:
         """Start playing media."""
@@ -332,16 +311,6 @@ class HADashboardPlayer(MediaPlayerEntity, RestoreEntity):
                 self._attr_repeat = "one"
         self._attr_state = MediaPlayerState.PLAYING
         self.async_write_ha_state()
-
-    def play_media(self, media_type: str, media_id: str, **kwargs: Any) -> None:
-        """Start playing media (sync wrapper)."""
-        self._run_coroutine_threadsafe(
-            self.async_play_media(media_type, media_id, **kwargs)
-        )
-
-    def _run_coroutine_threadsafe(self, coro) -> None:
-        """Schedule a coroutine from a worker thread."""
-        asyncio.run_coroutine_threadsafe(coro, self.hass.loop)
 
     async def async_browse_media(
         self, media_content_type: str | None = None, media_content_id: str | None = None
@@ -439,7 +408,9 @@ class HADashboardPlayer(MediaPlayerEntity, RestoreEntity):
             self._feedback_unsub = None
 
     def _handle_feedback_timeout(self, _now) -> None:
-        self.hass.async_add_job(self._async_handle_feedback_timeout)
+        self.hass.loop.call_soon_threadsafe(
+            self.hass.async_create_task, self._async_handle_feedback_timeout()
+        )
 
     async def _async_handle_feedback_timeout(self) -> None:
         if self._last_feedback is None:
@@ -462,11 +433,26 @@ class HADashboardPlayer(MediaPlayerEntity, RestoreEntity):
     async def _resolve_media_url(self, media_id: str) -> str | None:
         """Resolve a media ID into a playable URL."""
         if is_media_source_id(media_id):
-            if self._resolve_supports_entity_id:
+            local_prefix = "media-source://media_source/local/"
+            if media_id.startswith(local_prefix):
+                local_path = media_id[len(local_prefix) :]
+                return async_process_play_media_url(
+                    self.hass, f"/media/local/{local_path}"
+                )
+            _LOGGER.debug(
+                "Resolving media_source id=%s via %s",
+                media_id,
+                async_resolve_media,
+            )
+            try:
                 resolved = await async_resolve_media(
                     self.hass, media_id, entity_id=self.entity_id
                 )
-            else:
+            except TypeError as err:
+                _LOGGER.debug(
+                    "async_resolve_media entity_id failed, falling back: %s",
+                    err,
+                )
                 resolved = await async_resolve_media(self.hass, media_id)
             return async_process_play_media_url(self.hass, resolved.url)
 
@@ -490,7 +476,7 @@ class HADashboardPlayer(MediaPlayerEntity, RestoreEntity):
         target = self._cache_dir / filename
         target_url = f"/local/ha-dashboard-player/cache/{filename}"
 
-        self._cache_dir.mkdir(parents=True, exist_ok=True)
+        await asyncio.to_thread(self._cache_dir.mkdir, parents=True, exist_ok=True)
 
         session = async_get_clientsession(self.hass)
         try:
