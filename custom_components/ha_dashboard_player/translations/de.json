@@ -1,0 +1,26 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "HA Dashboard Player",
+        "description": "Erstellt einen virtuellen Media Player fuer die Dashboard-Wiedergabe.",
+        "data": {
+          "name": "Name",
+          "enable_cache": "Media-Cache aktivieren",
+          "restore_last_media": "Letzte Medien beim Start wiederherstellen"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "HA Dashboard Player Optionen",
+        "data": {
+          "enable_cache": "Media-Cache aktivieren",
+          "restore_last_media": "Letzte Medien beim Start wiederherstellen"
+        }
+      }
+    }
+  }
+}

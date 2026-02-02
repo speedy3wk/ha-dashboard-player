@@ -1,0 +1,26 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "HA Dashboard Player",
+        "description": "Create a virtual media player for dashboard playback.",
+        "data": {
+          "name": "Name",
+          "enable_cache": "Enable media cache",
+          "restore_last_media": "Restore last media on startup"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "HA Dashboard Player Options",
+        "data": {
+          "enable_cache": "Enable media cache",
+          "restore_last_media": "Restore last media on startup"
+        }
+      }
+    }
+  }
+}

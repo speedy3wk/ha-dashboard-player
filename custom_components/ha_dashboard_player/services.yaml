@@ -1,0 +1,11 @@
+preload_media:
+  name: Preload media
+  description: Download a media URL into the local cache.
+  fields:
+    media_url:
+      name: Media URL
+      description: HTTP or HTTPS URL to download.
+      example: "https://example.com/video.mp4"
+clear_screen:
+  name: Clear screen
+  description: Stop playback and show a black screen.
