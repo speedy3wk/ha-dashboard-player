@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import math
+from inspect import signature
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -26,12 +28,14 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
     ATTR_CACHE_ENABLED,
     ATTR_CACHED_MEDIA_URL,
+    ATTR_INTEGRATION,
     ATTR_LAST_ERROR,
     ATTR_MEDIA_URL,
     CONF_ENABLE_CACHE,
@@ -42,7 +46,15 @@ from .const import (
     DEFAULT_RESTORE_LAST_MEDIA,
     DOMAIN,
     SERVICE_CLEAR_SCREEN,
+    SERVICE_REPORT_STATE,
     SERVICE_FIELD_MEDIA_URL,
+    SERVICE_FIELD_STATE,
+    SERVICE_FIELD_MEDIA_POSITION,
+    SERVICE_FIELD_MEDIA_DURATION,
+    SERVICE_FIELD_VOLUME_LEVEL,
+    SERVICE_FIELD_IS_VOLUME_MUTED,
+    SERVICE_FIELD_REPEAT,
+    SERVICE_FIELD_SHUFFLE,
     SERVICE_PRELOAD_MEDIA,
 )
 
@@ -81,13 +93,26 @@ async def async_setup_entry(
         {},
         "async_clear_screen",
     )
+    platform.async_register_entity_service(
+        SERVICE_REPORT_STATE,
+        {
+            vol.Optional(SERVICE_FIELD_STATE): cv.string,
+            vol.Optional(SERVICE_FIELD_MEDIA_POSITION): vol.Coerce(float),
+            vol.Optional(SERVICE_FIELD_MEDIA_DURATION): vol.Coerce(float),
+            vol.Optional(SERVICE_FIELD_VOLUME_LEVEL): vol.Coerce(float),
+            vol.Optional(SERVICE_FIELD_IS_VOLUME_MUTED): cv.boolean,
+            vol.Optional(SERVICE_FIELD_REPEAT): cv.string,
+            vol.Optional(SERVICE_FIELD_SHUFFLE): cv.boolean,
+        },
+        "async_report_state",
+    )
 
 
 class HADashboardPlayer(MediaPlayerEntity, RestoreEntity):
     """Virtual media player for driving the dashboard UI."""
 
     _attr_state = MediaPlayerState.IDLE
-    _attr_supported_features = (
+    _BASE_SUPPORTED_FEATURES = (
         MediaPlayerEntityFeature.PLAY
         | MediaPlayerEntityFeature.PLAY_MEDIA
         | MediaPlayerEntityFeature.BROWSE_MEDIA
@@ -118,6 +143,12 @@ class HADashboardPlayer(MediaPlayerEntity, RestoreEntity):
         self._last_error: str | None = None
         self._cache_map: dict[str, str] = {}
         self._cache_dir = Path(hass.config.path("www/ha-dashboard-player/cache"))
+        self._last_feedback: datetime | None = None
+        self._feedback_unsub = None
+        self._feedback_timeout_seconds = 3.0
+        self._resolve_supports_entity_id = (
+            "entity_id" in signature(async_resolve_media).parameters
+        )
 
     async def async_added_to_hass(self) -> None:
         """Restore state on startup."""
@@ -146,6 +177,18 @@ class HADashboardPlayer(MediaPlayerEntity, RestoreEntity):
         self._cached_media_url = last_state.attributes.get(ATTR_CACHED_MEDIA_URL)
 
     @property
+    def supported_features(self) -> int:
+        """Return supported features based on current media."""
+        features = self._BASE_SUPPORTED_FEATURES
+        if not self._can_repeat():
+            features &= ~MediaPlayerEntityFeature.REPEAT_SET
+        if not self._is_playlist():
+            features &= ~MediaPlayerEntityFeature.SHUFFLE_SET
+        if not self._media_url:
+            features &= ~MediaPlayerEntityFeature.STOP
+        return features
+
+    @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra state attributes."""
         return {
@@ -153,6 +196,7 @@ class HADashboardPlayer(MediaPlayerEntity, RestoreEntity):
             ATTR_CACHED_MEDIA_URL: self._cached_media_url,
             ATTR_CACHE_ENABLED: self._cache_enabled,
             ATTR_LAST_ERROR: self._last_error,
+            ATTR_INTEGRATION: True,
         }
 
     async def async_turn_on(self) -> None:
@@ -165,6 +209,7 @@ class HADashboardPlayer(MediaPlayerEntity, RestoreEntity):
 
     async def async_turn_off(self) -> None:
         """Turn off the player and clear output."""
+        self._cancel_feedback_timer()
         await self.async_clear_screen()
 
     async def async_play(self) -> None:
@@ -225,7 +270,13 @@ class HADashboardPlayer(MediaPlayerEntity, RestoreEntity):
 
     async def async_set_repeat(self, repeat: str) -> None:
         """Set repeat mode."""
-        self._attr_repeat = repeat
+        if not self._can_repeat():
+            return
+
+        normalized = repeat
+        if not self._is_playlist() and repeat == "all":
+            normalized = "one"
+        self._attr_repeat = normalized
         self.async_write_ha_state()
 
     def set_repeat(self, repeat: str) -> None:
@@ -234,7 +285,10 @@ class HADashboardPlayer(MediaPlayerEntity, RestoreEntity):
 
     async def async_set_shuffle(self, shuffle: bool) -> None:
         """Enable/disable shuffle."""
-        self._attr_shuffle = shuffle
+        if not self._is_playlist():
+            self._attr_shuffle = False
+        else:
+            self._attr_shuffle = shuffle
         self.async_write_ha_state()
 
     def set_shuffle(self, shuffle: bool) -> None:
@@ -244,6 +298,7 @@ class HADashboardPlayer(MediaPlayerEntity, RestoreEntity):
     async def async_play_media(self, media_type: str, media_id: str, **kwargs: Any) -> None:
         """Start playing media."""
         self._last_error = None
+        self._cancel_feedback_timer()
         resolved_url = await self._resolve_media_url(media_id)
         if resolved_url is None:
             self._last_error = f"Unable to resolve media: {media_id}"
@@ -261,8 +316,20 @@ class HADashboardPlayer(MediaPlayerEntity, RestoreEntity):
         self._media_url = final_url
         self._attr_media_content_type = media_type
         self._attr_media_content_id = media_id
-        self._attr_media_position = 0
-        self._attr_media_position_updated_at = datetime.now(timezone.utc)
+        if media_type.startswith("image"):
+            self._attr_media_position = 0
+            self._attr_media_duration = 0
+            self._attr_media_position_updated_at = None
+            self._attr_repeat = None
+            self._attr_shuffle = False
+        else:
+            self._attr_media_position = 0
+            self._attr_media_duration = None
+            self._attr_media_position_updated_at = datetime.now(timezone.utc)
+            if not self._is_playlist() and self._attr_shuffle:
+                self._attr_shuffle = False
+            if not self._is_playlist() and self._attr_repeat == "all":
+                self._attr_repeat = "one"
         self._attr_state = MediaPlayerState.PLAYING
         self.async_write_ha_state()
 
@@ -300,23 +367,106 @@ class HADashboardPlayer(MediaPlayerEntity, RestoreEntity):
 
     async def async_clear_screen(self) -> None:
         """Clear output and set state to idle."""
+        self._cancel_feedback_timer()
         self._media_url = None
         self._cached_media_url = None
         self._attr_media_content_type = None
         self._attr_media_content_id = None
         self._attr_media_position = None
         self._attr_media_duration = None
+        self._attr_media_position_updated_at = None
         self._attr_state = MediaPlayerState.IDLE
         self.async_write_ha_state()
+
+    async def async_report_state(
+        self,
+        state: str | None = None,
+        media_position: float | None = None,
+        media_duration: float | None = None,
+        volume_level: float | None = None,
+        is_volume_muted: bool | None = None,
+        repeat: str | None = None,
+        shuffle: bool | None = None,
+    ) -> None:
+        """Update player state from frontend feedback."""
+        if self._attr_state in (MediaPlayerState.IDLE, MediaPlayerState.OFF):
+            self._attr_media_position = None
+            self._attr_media_duration = None
+            self._attr_media_position_updated_at = None
+            self.async_write_ha_state()
+            return
+
+        self._last_feedback = datetime.now(timezone.utc)
+        self._schedule_feedback_timeout()
+
+        if media_position is not None:
+            if math.isfinite(media_position) and media_position >= 0:
+                self._attr_media_position = media_position
+                self._attr_media_position_updated_at = datetime.now(timezone.utc)
+
+        if media_duration is not None:
+            if math.isfinite(media_duration):
+                self._attr_media_duration = media_duration
+
+        if media_duration is not None and media_duration <= 0:
+            self._attr_media_position = 0
+            self._attr_media_position_updated_at = None
+
+        if volume_level is not None:
+            self._attr_volume_level = volume_level
+
+        if is_volume_muted is not None:
+            self._attr_is_volume_muted = is_volume_muted
+
+        if repeat is not None:
+            self._attr_repeat = repeat
+
+        if shuffle is not None:
+            self._attr_shuffle = shuffle
+
+        self.async_write_ha_state()
+
+    def _schedule_feedback_timeout(self) -> None:
+        """Clear progress values if feedback goes stale."""
+        self._cancel_feedback_timer()
+        self._feedback_unsub = async_call_later(
+            self.hass, self._feedback_timeout_seconds, self._handle_feedback_timeout
+        )
+
+    def _cancel_feedback_timer(self) -> None:
+        if self._feedback_unsub is not None:
+            self._feedback_unsub()
+            self._feedback_unsub = None
+
+    def _handle_feedback_timeout(self, _now) -> None:
+        self.hass.async_add_job(self._async_handle_feedback_timeout)
+
+    async def _async_handle_feedback_timeout(self) -> None:
+        if self._last_feedback is None:
+            return
+
+        elapsed = (datetime.now(timezone.utc) - self._last_feedback).total_seconds()
+        if elapsed < self._feedback_timeout_seconds:
+            return
+
+        media_type = self._attr_media_content_type or ""
+        if media_type.startswith("image"):
+            return
+
+        if self._attr_state in (MediaPlayerState.PLAYING, MediaPlayerState.PAUSED):
+            self._attr_media_position = None
+            self._attr_media_duration = None
+            self._attr_media_position_updated_at = None
+            self.async_write_ha_state()
 
     async def _resolve_media_url(self, media_id: str) -> str | None:
         """Resolve a media ID into a playable URL."""
         if is_media_source_id(media_id):
-            try:
+            if self._resolve_supports_entity_id:
                 resolved = await async_resolve_media(
                     self.hass, media_id, entity_id=self.entity_id
                 )
-            except TypeError:
+            else:
                 resolved = await async_resolve_media(self.hass, media_id)
             return async_process_play_media_url(self.hass, resolved.url)
 
@@ -364,6 +514,18 @@ class HADashboardPlayer(MediaPlayerEntity, RestoreEntity):
     def shuffle(self) -> bool | None:
         """Return shuffle setting."""
         return self._attr_shuffle
+
+    def _can_repeat(self) -> bool:
+        media_type = self._attr_media_content_type or ""
+        return bool(media_type) and not media_type.startswith("image")
+
+    def _is_playlist(self) -> bool:
+        media_type = (self._attr_media_content_type or "").lower()
+        if "playlist" in media_type:
+            return True
+
+        media_id = (self._attr_media_content_id or "").lower()
+        return media_id.endswith((".m3u", ".m3u8", ".pls"))
 
     @property
     def media_position_updated_at(self) -> datetime | None:

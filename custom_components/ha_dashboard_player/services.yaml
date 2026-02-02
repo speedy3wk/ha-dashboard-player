@@ -9,3 +9,36 @@ preload_media:
 clear_screen:
   name: Clear screen
   description: Stop playback and show a black screen.
+
+report_state:
+  name: Report state
+  description: Update entity state and playback info from the frontend card.
+  fields:
+    state:
+      name: State
+      description: Media player state (playing, paused, idle, off).
+      example: "playing"
+    media_position:
+      name: Media position
+      description: Playback position in seconds.
+      example: 12.5
+    media_duration:
+      name: Media duration
+      description: Media duration in seconds.
+      example: 120.0
+    volume_level:
+      name: Volume level
+      description: Volume level from 0.0 to 1.0.
+      example: 0.7
+    is_volume_muted:
+      name: Volume muted
+      description: Whether playback is muted.
+      example: true
+    repeat:
+      name: Repeat mode
+      description: Repeat setting reported by the frontend.
+      example: "one"
+    shuffle:
+      name: Shuffle
+      description: Shuffle setting reported by the frontend.
+      example: false

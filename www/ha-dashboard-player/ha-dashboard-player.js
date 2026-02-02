@@ -9,6 +9,27 @@ const DEFAULT_CONFIG = {
   kiosk_compat: false,
 };
 
+const LOCALIZATION = {
+  en: {
+    entity: "Entity",
+    show_controls: "Show controls",
+    autoplay: "Autoplay",
+    fullscreen: "Fullscreen (panel)",
+    kiosk_compat: "Kiosk compat (WebKit)",
+    fit: "Fit (contain | cover | fill)",
+    background: "Background (CSS color)",
+  },
+  de: {
+    entity: "Entitaet",
+    show_controls: "Steuerung anzeigen",
+    autoplay: "Autoplay",
+    fullscreen: "Vollbild (Panel)",
+    kiosk_compat: "Kiosk-kompatibel (WebKit)",
+    fit: "Anpassen (contain | cover | fill)",
+    background: "Hintergrund (CSS-Farbe)",
+  },
+};
+
 const TEMPLATE = document.createElement("template");
 TEMPLATE.innerHTML = `
   <style>
@@ -111,6 +132,36 @@ class HADashboardPlayerCard extends HTMLElement {
       this._audio = this.shadowRoot.querySelector("audio");
       this._img = this.shadowRoot.querySelector("img");
       this._idle = this.shadowRoot.querySelector(".idle");
+      this._onMediaEnded = (event) => this._handleMediaEnded(event);
+      this._onMediaPlay = (event) => this._handleMediaPlay(event);
+      this._onMediaPause = (event) => this._handleMediaPause(event);
+      this._onMediaTimeUpdate = (event) => this._handleMediaTimeUpdate(event);
+      this._onMediaSeeked = (event) => this._handleMediaSeeked(event);
+      this._onMediaLoaded = (event) => this._handleMediaLoaded(event);
+      this._onMediaDuration = (event) => this._handleMediaDuration(event);
+      this._onMediaVolume = (event) => this._handleMediaVolume(event);
+      this._lastReportPayload = null;
+      this._entityState = null;
+      this._reportedImageUrl = null;
+      this._lastMediaTime = null;
+      this._lastPositionReport = 0;
+
+      this._video.addEventListener("ended", this._onMediaEnded);
+      this._audio.addEventListener("ended", this._onMediaEnded);
+      this._video.addEventListener("play", this._onMediaPlay);
+      this._audio.addEventListener("play", this._onMediaPlay);
+      this._video.addEventListener("pause", this._onMediaPause);
+      this._audio.addEventListener("pause", this._onMediaPause);
+      this._video.addEventListener("timeupdate", this._onMediaTimeUpdate);
+      this._audio.addEventListener("timeupdate", this._onMediaTimeUpdate);
+      this._video.addEventListener("seeked", this._onMediaSeeked);
+      this._audio.addEventListener("seeked", this._onMediaSeeked);
+      this._video.addEventListener("loadedmetadata", this._onMediaLoaded);
+      this._audio.addEventListener("loadedmetadata", this._onMediaLoaded);
+      this._video.addEventListener("durationchange", this._onMediaDuration);
+      this._audio.addEventListener("durationchange", this._onMediaDuration);
+      this._video.addEventListener("volumechange", this._onMediaVolume);
+      this._audio.addEventListener("volumechange", this._onMediaVolume);
     }
 
     this._applyConfig();
@@ -152,21 +203,30 @@ class HADashboardPlayerCard extends HTMLElement {
 
     const stateObj = this._hass.states[this._config.entity];
     if (!stateObj) {
+      this._entityState = null;
+      this._reportedImageUrl = null;
       this._setIdle();
       return;
     }
 
     const attrs = stateObj.attributes || {};
     const state = stateObj.state;
+    this._entityState = state;
     const mediaUrl = attrs.media_url || attrs.entity_picture || attrs.media_content_id;
     const mediaType = attrs.media_content_type || "";
 
     if (!mediaUrl || state === "idle" || state === "off") {
+      this._reportedImageUrl = null;
       this._setIdle();
       return;
     }
 
     if (mediaType.startsWith("image")) {
+      if (state !== "playing") {
+        this._reportedImageUrl = null;
+        this._setIdle();
+        return;
+      }
       this._showImage(mediaUrl);
       return;
     }
@@ -210,12 +270,18 @@ class HADashboardPlayerCard extends HTMLElement {
     this._hideAll();
     this._img.src = url;
     this._img.classList.remove("hidden");
+    if (this._reportedImageUrl !== url) {
+      this._reportedImageUrl = url;
+      this._reportState("playing", 0, 0, null, null, null, null, true);
+    }
   }
 
   _showVideo(url, state, attrs) {
     this._hideAll();
-    if (this._video.src !== url) {
-      this._video.src = url;
+    const currentSrc = this._video.getAttribute("src");
+    if (currentSrc !== url) {
+      this._video.setAttribute("src", url);
+      this._lastMediaTime = null;
     }
     this._applyMediaSettings(this._video, state, attrs);
     this._video.classList.remove("hidden");
@@ -223,8 +289,10 @@ class HADashboardPlayerCard extends HTMLElement {
 
   _showAudio(url, state, attrs) {
     this._hideAll();
-    if (this._audio.src !== url) {
-      this._audio.src = url;
+    const currentSrc = this._audio.getAttribute("src");
+    if (currentSrc !== url) {
+      this._audio.setAttribute("src", url);
+      this._lastMediaTime = null;
     }
     this._applyMediaSettings(this._audio, state, attrs);
     this._audio.classList.remove("hidden");
@@ -254,6 +322,227 @@ class HADashboardPlayerCard extends HTMLElement {
     }
   }
 
+  _reportState(
+    state,
+    mediaPosition,
+    mediaDuration,
+    volumeLevel,
+    isVolumeMuted,
+    repeat,
+    shuffle,
+    force = false
+  ) {
+    if (!this._config || !this._hass) {
+      return;
+    }
+
+    const payload = { entity_id: this._config.entity };
+    if (state) {
+      payload.state = state;
+    }
+    if (
+      typeof mediaPosition === "number" &&
+      Number.isFinite(mediaPosition) &&
+      mediaPosition >= 0
+    ) {
+      payload.media_position = mediaPosition;
+    }
+    if (
+      typeof mediaDuration === "number" &&
+      (mediaDuration === 0 ||
+        (Number.isFinite(mediaDuration) && mediaDuration > 0))
+    ) {
+      payload.media_duration = mediaDuration;
+    }
+    if (typeof volumeLevel === "number" && Number.isFinite(volumeLevel)) {
+      payload.volume_level = volumeLevel;
+    }
+    if (typeof isVolumeMuted === "boolean") {
+      payload.is_volume_muted = isVolumeMuted;
+    }
+    if (typeof repeat === "string") {
+      payload.repeat = repeat;
+    }
+    if (typeof shuffle === "boolean") {
+      payload.shuffle = shuffle;
+    }
+
+    const payloadKey = JSON.stringify(payload);
+    if (!force && this._lastReportPayload === payloadKey) {
+      return;
+    }
+    this._lastReportPayload = payloadKey;
+    this._hass.callService("ha_dashboard_player", "report_state", payload);
+  }
+
+  _handleMediaPlay(event) {
+    const element = event?.target;
+    if (!element) {
+      return;
+    }
+    if (element.classList.contains("hidden")) {
+      return;
+    }
+    if (element.readyState < 1) {
+      return;
+    }
+    this._reportState(
+      element.currentTime,
+      element.duration,
+      element.volume,
+      element.muted
+    );
+  }
+
+  _handleMediaPause(event) {
+    const element = event?.target;
+    if (!element) {
+      return;
+    }
+    if (element.classList.contains("hidden")) {
+      return;
+    }
+    if (element.readyState < 1) {
+      return;
+    }
+    this._reportState(
+      element.currentTime,
+      element.duration,
+      element.volume,
+      element.muted
+    );
+  }
+
+  _handleMediaTimeUpdate(event) {
+    const element = event?.target;
+    if (!element) {
+      return;
+    }
+    if (element.classList.contains("hidden")) {
+      return;
+    }
+    if (element.readyState < 1) {
+      return;
+    }
+    if (!Number.isFinite(element.duration)) {
+      return;
+    }
+
+    const now = Date.now();
+    if (now - this._lastPositionReport < 2000) {
+      return;
+    }
+    this._lastPositionReport = now;
+
+    if (typeof element.currentTime === "number" && this._lastMediaTime !== null) {
+      if (element.currentTime + 0.5 < this._lastMediaTime) {
+        this._reportState(null, 0, element.duration, null, null, null, null, true);
+      }
+    }
+    this._lastMediaTime = element.currentTime;
+
+    this._reportState(
+      null,
+      element.currentTime,
+      element.duration,
+      element.volume,
+      element.muted
+    );
+  }
+
+  _handleMediaSeeked(event) {
+    const element = event?.target;
+    if (!element) {
+      return;
+    }
+    if (element.classList.contains("hidden")) {
+      return;
+    }
+    if (this._entityState !== "playing" && this._entityState !== "paused") {
+      return;
+    }
+    if (element.readyState < 1) {
+      return;
+    }
+    this._reportState(
+      null,
+      element.currentTime,
+      element.duration,
+      element.volume,
+      element.muted
+    );
+  }
+
+  _handleMediaLoaded(event) {
+    const element = event?.target;
+    if (!element) {
+      return;
+    }
+    if (element.classList.contains("hidden")) {
+      return;
+    }
+    if (element.readyState < 1) {
+      return;
+    }
+    this._reportState(
+      null,
+      element.currentTime,
+      element.duration,
+      element.volume,
+      element.muted
+    );
+  }
+
+  _handleMediaDuration(event) {
+    const element = event?.target;
+    if (!element) {
+      return;
+    }
+    if (element.classList.contains("hidden")) {
+      return;
+    }
+    if (!Number.isFinite(element.duration)) {
+      return;
+    }
+    this._reportState(null, element.currentTime, element.duration, null, null);
+  }
+
+  _handleMediaVolume(event) {
+    const element = event?.target;
+    if (!element) {
+      return;
+    }
+    if (element.classList.contains("hidden")) {
+      return;
+    }
+    if (this._entityState !== "playing" && this._entityState !== "paused") {
+      return;
+    }
+    this._reportState(
+      null,
+      element.currentTime,
+      element.duration,
+      element.volume,
+      element.muted
+    );
+  }
+
+  _handleMediaEnded(event) {
+    if (!this._config || !this._hass) {
+      return;
+    }
+
+    const element = event?.target;
+    if (element && element.loop) {
+      return;
+    }
+
+    this._setIdle();
+    this._hass.callService("media_player", "media_stop", {
+      entity_id: this._config.entity,
+    });
+  }
+
   _computePosition(state, attrs) {
     if (typeof attrs.media_position !== "number") {
       return null;
@@ -272,7 +561,9 @@ class HADashboardPlayerCard extends HTMLElement {
   }
 }
 
-customElements.define("ha-dashboard-player", HADashboardPlayerCard);
+if (!customElements.get("ha-dashboard-player")) {
+  customElements.define("ha-dashboard-player", HADashboardPlayerCard);
+}
 
 class HADashboardPlayerEditor extends HTMLElement {
   set hass(hass) {
@@ -280,6 +571,7 @@ class HADashboardPlayerEditor extends HTMLElement {
     if (this._entityPicker) {
       this._entityPicker.hass = hass;
     }
+    this._applyEditorLabels();
   }
 
   setConfig(config) {
@@ -296,24 +588,31 @@ class HADashboardPlayerEditor extends HTMLElement {
         <div class="form">
           <ha-entity-picker
             id="entity"
-            label="Entity"
-            allow-custom-entity
           ></ha-entity-picker>
           <ha-switch id="show_controls"></ha-switch>
-          <ha-formfield label="Show controls" for="show_controls"></ha-formfield>
+          <ha-formfield for="show_controls"></ha-formfield>
           <ha-switch id="autoplay"></ha-switch>
-          <ha-formfield label="Autoplay" for="autoplay"></ha-formfield>
+          <ha-formfield for="autoplay"></ha-formfield>
           <ha-switch id="fullscreen"></ha-switch>
-          <ha-formfield label="Fullscreen (panel)" for="fullscreen"></ha-formfield>
+          <ha-formfield for="fullscreen"></ha-formfield>
           <ha-switch id="kiosk_compat"></ha-switch>
-          <ha-formfield label="Kiosk compat (WebKit)" for="kiosk_compat"></ha-formfield>
-          <ha-textfield id="fit" label="Fit (contain | cover | fill)"></ha-textfield>
-          <ha-textfield id="background" label="Background (CSS color)"></ha-textfield>
+          <ha-formfield for="kiosk_compat"></ha-formfield>
+          <ha-textfield id="fit"></ha-textfield>
+          <ha-textfield id="background"></ha-textfield>
         </div>
       `;
 
       this._entityPicker = this.shadowRoot.querySelector("#entity");
       this._entityPicker.hass = this._hass;
+      if ("includeDomains" in this._entityPicker) {
+        this._entityPicker.includeDomains = ["media_player"];
+      }
+      const filter = (entityId) => this._isDashboardPlayerEntity(entityId);
+      if ("entityFilter" in this._entityPicker) {
+        this._entityPicker.entityFilter = filter;
+      } else if ("filter" in this._entityPicker) {
+        this._entityPicker.filter = filter;
+      }
 
       this.shadowRoot
         .querySelector("#show_controls")
@@ -350,6 +649,8 @@ class HADashboardPlayerEditor extends HTMLElement {
       );
     }
 
+    this._applyEditorLabels();
+
     this._entityPicker.value = this._config.entity || "";
     this.shadowRoot.querySelector("#show_controls").checked =
       Boolean(this._config.show_controls);
@@ -365,6 +666,9 @@ class HADashboardPlayerEditor extends HTMLElement {
   }
 
   _valueChanged(key, value) {
+    if (key === "entity" && value && !this._isDashboardPlayerEntity(value)) {
+      return;
+    }
     if (!this._config || this._config[key] === value) {
       return;
     }
@@ -379,9 +683,66 @@ class HADashboardPlayerEditor extends HTMLElement {
       })
     );
   }
+
+  _applyEditorLabels() {
+    if (!this.shadowRoot) {
+      return;
+    }
+
+    const labels = this._localizeLabels();
+    const entityPicker = this.shadowRoot.querySelector("#entity");
+    if (entityPicker) {
+      entityPicker.label = labels.entity;
+    }
+
+    this._setFormLabel("show_controls", labels.show_controls);
+    this._setFormLabel("autoplay", labels.autoplay);
+    this._setFormLabel("fullscreen", labels.fullscreen);
+    this._setFormLabel("kiosk_compat", labels.kiosk_compat);
+
+    const fit = this.shadowRoot.querySelector("#fit");
+    if (fit) {
+      fit.label = labels.fit;
+    }
+
+    const background = this.shadowRoot.querySelector("#background");
+    if (background) {
+      background.label = labels.background;
+    }
+  }
+
+  _setFormLabel(controlId, label) {
+    const field = this.shadowRoot.querySelector(
+      `ha-formfield[for="${controlId}"]`
+    );
+    if (field) {
+      field.setAttribute("label", label);
+    }
+  }
+
+  _localizeLabels() {
+    const lang = this._hass?.language || "en";
+    const table = LOCALIZATION[lang] || LOCALIZATION.en;
+    return {
+      entity: table.entity || LOCALIZATION.en.entity,
+      show_controls: table.show_controls || LOCALIZATION.en.show_controls,
+      autoplay: table.autoplay || LOCALIZATION.en.autoplay,
+      fullscreen: table.fullscreen || LOCALIZATION.en.fullscreen,
+      kiosk_compat: table.kiosk_compat || LOCALIZATION.en.kiosk_compat,
+      fit: table.fit || LOCALIZATION.en.fit,
+      background: table.background || LOCALIZATION.en.background,
+    };
+  }
+
+  _isDashboardPlayerEntity(entityId) {
+    const stateObj = this._hass?.states?.[entityId];
+    return Boolean(stateObj?.attributes?.ha_dashboard_player);
+  }
 }
 
-customElements.define("ha-dashboard-player-editor", HADashboardPlayerEditor);
+if (!customElements.get("ha-dashboard-player-editor")) {
+  customElements.define("ha-dashboard-player-editor", HADashboardPlayerEditor);
+}
 
 window.customCards = window.customCards || [];
 window.customCards.push({

@@ -5,8 +5,9 @@ A Home Assistant custom integration that exposes a virtual `media_player` entity
 ## Features
 - Media player entity with play, pause, stop, seek, volume, mute, repeat, shuffle.
 - Displays images, video, and audio (audio uses black background).
-- Optional media cache to `/config/www/ha-dashboard-player/cache`.
+- Optional media cache to `/config/www/ha-dashboard-player/cache` for HTTP/HTTPS sources.
 - Restores last media on startup (optional).
+- Card reports playback position/duration back to the entity when active.
 
 ## Installation
 
@@ -42,6 +43,16 @@ fit: contain
 background: "#000000"
 ```
 
+### Card Options
+- `show_controls`: Show native audio/video controls (default `false`).
+- `autoplay`: Autoplay media when possible (default `true`).
+- `fullscreen`: Use fullscreen layout when in a panel view (default `false`).
+- `kiosk_compat`: Force autoplay + muted for kiosk/WebKit usage (default `false`).
+- `fit`: Media fit mode (`contain`, `cover`, `fill`).
+- `background`: Background CSS color (default `#000000`).
+
+The entity picker in the editor only lists HA Dashboard Player media players.
+
 ## Fullscreen Panel View
 Create a panel view in your dashboard:
 
@@ -59,8 +70,12 @@ cards:
 - `media_player.play_media` to start playback. Use `media_content_type` values like `video`, `audio`, `music`, `image`.
 - `ha_dashboard_player.preload_media` to cache a URL.
 - `ha_dashboard_player.clear_screen` to show black screen.
+- `ha_dashboard_player.report_state` is used by the Lovelace card to report playback position and duration (not for manual use).
 
 ## Notes
 - HDMI audio output is handled by the HAOS host. Ensure the host audio output is set to HDMI.
 - For local files, place media in `/media` or `/config/www` and reference via `media_source` or URL.
+- Images report `media_duration=0` and ignore repeat/shuffle.
+- Repeat is available for non-image media. Shuffle is only enabled for playlists.
+- If the card is not active, playback position/duration is cleared after a short timeout.
 - Created with AI-Tools, reviewed by me.
