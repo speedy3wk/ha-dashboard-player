@@ -78,4 +78,5 @@ cards:
 - Images report `media_duration=0` and ignore repeat/shuffle.
 - Repeat is available for non-image media. Shuffle is only enabled for playlists.
 - If the card is not active, playback position/duration is cleared after a short timeout.
+- Home Assistant 2026.2+ enforces stricter `entity_id` rules. The integration now sanitizes the configured name to lowercase with underscores only (for example, `Living Room` -> `living_room`). If you upgrade from an older version, HA may rename existing entities that used disallowed characters, so update automations and Lovelace configs accordingly.
 - Created with AI-Tools, reviewed by me.
