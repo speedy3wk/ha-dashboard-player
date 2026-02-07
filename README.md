@@ -1,6 +1,6 @@
 # HA Dashboard Player
 
-A Home Assistant custom integration that exposes a virtual `media_player` entity and a Lovelace card for fullscreen dashboard playback. It is designed for HAOS kiosk usage on HDMI output using the HAOS Chromium Kiosk Addon https://github.com/speedy3wk/haos-chromium-kiosk.
+A Home Assistant custom integration that exposes a virtual `media_player` entity and a Lovelace card for fullscreen dashboard playback. It is designed for HAOS kiosk usage on HDMI output using the HAOS Chromium Kiosk App https://github.com/speedy3wk/haos-chromium-kiosk.
 
 ## Features
 - Media player entity with play, pause, stop, seek, volume, mute, repeat, shuffle.
