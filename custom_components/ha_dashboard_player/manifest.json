@@ -1,7 +1,7 @@
 {
   "domain": "ha_dashboard_player",
   "name": "HA Dashboard Player",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "documentation": "https://github.com/speedy3wk/ha-dashboard-player",
   "requirements": [],
   "dependencies": ["media_player", "frontend"],

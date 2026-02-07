@@ -1,7 +1,6 @@
 """Config flow for HA Dashboard Player."""
 
 import logging
-import re
 
 import voluptuous as vol
 
@@ -9,6 +8,7 @@ from homeassistant import config_entries
 from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
+from homeassistant.util import slugify as ha_slugify
 
 from .const import (
     DEFAULT_ENABLE_CACHE,
@@ -105,7 +105,5 @@ _LOGGER = logging.getLogger(__name__)
 
 def _sanitize_name(raw_name: str) -> str:
     """Sanitize the entity name to match HA 2026.2+ entity_id rules."""
-    name = raw_name.strip().lower()
-    name = re.sub(r"[^a-z0-9_]+", "_", name)
-    name = re.sub(r"_+", "_", name).strip("_")
+    name = ha_slugify(raw_name, separator="_")
     return name or "dashboard_player"
