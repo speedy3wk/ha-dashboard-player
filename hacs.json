@@ -1,5 +1,6 @@
 {
   "name": "HA Dashboard Player",
   "content_in_root": false,
-  "domains": ["ha_dashboard_player"]
+  "homeassistant": "2026.10.0",
+  "render_readme": true
 }

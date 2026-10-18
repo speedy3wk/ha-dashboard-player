@@ -1,109 +1,104 @@
 """Config flow for HA Dashboard Player."""
 
-import logging
+from __future__ import annotations
 
-import voluptuous as vol
+from typing import Any
 
-from homeassistant import config_entries
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlowWithReload,
+)
 from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
-from homeassistant.helpers import config_validation as cv
-from homeassistant.util import slugify as ha_slugify
+from homeassistant.helpers import selector
+import probatio
 
 from .const import (
+    CONF_ENABLE_CACHE,
+    CONF_RESTORE_LAST_MEDIA,
     DEFAULT_ENABLE_CACHE,
     DEFAULT_NAME,
     DEFAULT_RESTORE_LAST_MEDIA,
     DOMAIN,
-    CONF_ENABLE_CACHE,
-    CONF_RESTORE_LAST_MEDIA,
 )
 
+OPTIONS_SCHEMA = probatio.Schema(
+    {
+        probatio.Required(
+            CONF_ENABLE_CACHE, default=DEFAULT_ENABLE_CACHE
+        ): selector.BooleanSelector(),
+        probatio.Required(
+            CONF_RESTORE_LAST_MEDIA, default=DEFAULT_RESTORE_LAST_MEDIA
+        ): selector.BooleanSelector(),
+    }
+)
 
-class HADashboardPlayerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+USER_SCHEMA = probatio.Schema(
+    {probatio.Required(CONF_NAME, default=DEFAULT_NAME): selector.TextSelector()}
+).extend(OPTIONS_SCHEMA.schema)
+
+
+class HADashboardPlayerConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow."""
 
     VERSION = 1
 
-    async def async_step_user(self, user_input=None):
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Handle the initial step."""
+        errors: dict[str, str] = {}
         if user_input is not None:
-            raw_name = user_input[CONF_NAME]
-            sanitized_name = _sanitize_name(raw_name)
-            if raw_name != sanitized_name:
-                _LOGGER.info(
-                    "Sanitized dashboard player name from '%s' to '%s'",
-                    raw_name,
-                    sanitized_name,
+            name = user_input[CONF_NAME].strip()
+            if not name:
+                errors[CONF_NAME] = "name_required"
+            else:
+                self._async_abort_entries_match({CONF_NAME: name})
+                return self.async_create_entry(
+                    title=name,
+                    data={CONF_NAME: name},
+                    options={
+                        CONF_ENABLE_CACHE: user_input[CONF_ENABLE_CACHE],
+                        CONF_RESTORE_LAST_MEDIA: user_input[CONF_RESTORE_LAST_MEDIA],
+                    },
                 )
-            return self.async_create_entry(
-                title=sanitized_name,
-                data={
-                    CONF_NAME: sanitized_name,
-                    CONF_ENABLE_CACHE: user_input[CONF_ENABLE_CACHE],
-                    CONF_RESTORE_LAST_MEDIA: user_input[CONF_RESTORE_LAST_MEDIA],
-                },
-            )
 
-        schema = vol.Schema(
-            {
-                vol.Required(CONF_NAME, default=DEFAULT_NAME): cv.string,
-                vol.Optional(CONF_ENABLE_CACHE, default=DEFAULT_ENABLE_CACHE): cv.boolean,
-                vol.Optional(
-                    CONF_RESTORE_LAST_MEDIA, default=DEFAULT_RESTORE_LAST_MEDIA
-                ): cv.boolean,
-            }
+        return self.async_show_form(
+            step_id="user",
+            data_schema=self.add_suggested_values_to_schema(USER_SCHEMA, user_input),
+            errors=errors,
         )
-
-        return self.async_show_form(step_id="user", data_schema=schema)
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry):
-        return HADashboardPlayerOptionsFlow(config_entry)
+    def async_get_options_flow(
+        config_entry: ConfigEntry,
+    ) -> HADashboardPlayerOptionsFlow:
+        """Return the options flow."""
+        return HADashboardPlayerOptionsFlow()
 
 
-class HADashboardPlayerOptionsFlow(config_entries.OptionsFlow):
-    """Handle options."""
+class HADashboardPlayerOptionsFlow(OptionsFlowWithReload):
+    """Handle options; the entry is reloaded automatically on change."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        self._config_entry = config_entry
-
-    async def async_step_init(self, user_input=None):
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Manage the options."""
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            return self.async_create_entry(data=user_input)
 
-        schema = vol.Schema(
-            {
-                vol.Optional(
-                    CONF_ENABLE_CACHE,
-                    default=self._config_entry.options.get(
-                        CONF_ENABLE_CACHE,
-                        self._config_entry.data.get(
-                            CONF_ENABLE_CACHE, DEFAULT_ENABLE_CACHE
-                        ),
-                    ),
-                ): cv.boolean,
-                vol.Optional(
-                    CONF_RESTORE_LAST_MEDIA,
-                    default=self._config_entry.options.get(
-                        CONF_RESTORE_LAST_MEDIA,
-                        self._config_entry.data.get(
-                            CONF_RESTORE_LAST_MEDIA, DEFAULT_RESTORE_LAST_MEDIA
-                        ),
-                    ),
-                ): cv.boolean,
-            }
+        entry = self.config_entry
+        current = {
+            key: entry.options.get(key, entry.data.get(key, default))
+            for key, default in (
+                (CONF_ENABLE_CACHE, DEFAULT_ENABLE_CACHE),
+                (CONF_RESTORE_LAST_MEDIA, DEFAULT_RESTORE_LAST_MEDIA),
+            )
+        }
+        return self.async_show_form(
+            step_id="init",
+            data_schema=self.add_suggested_values_to_schema(OPTIONS_SCHEMA, current),
         )
-
-        return self.async_show_form(step_id="init", data_schema=schema)
-
-
-_LOGGER = logging.getLogger(__name__)
-
-
-def _sanitize_name(raw_name: str) -> str:
-    """Sanitize the entity name to match HA 2026.2+ entity_id rules."""
-    name = ha_slugify(raw_name, separator="_")
-    return name or "dashboard_player"

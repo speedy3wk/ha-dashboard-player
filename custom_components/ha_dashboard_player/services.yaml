@@ -1,44 +1,68 @@
 preload_media:
-  name: Preload media
-  description: Download a media URL into the local cache.
+  target:
+    entity:
+      integration: ha_dashboard_player
+      domain: media_player
   fields:
     media_url:
-      name: Media URL
-      description: HTTP or HTTPS URL to download.
+      required: true
       example: "https://example.com/video.mp4"
+      selector:
+        text:
+          type: url
+
 clear_screen:
-  name: Clear screen
-  description: Stop playback and show a black screen.
+  target:
+    entity:
+      integration: ha_dashboard_player
+      domain: media_player
 
 report_state:
-  name: Report state
-  description: Update entity state and playback info from the frontend card.
+  target:
+    entity:
+      integration: ha_dashboard_player
+      domain: media_player
   fields:
     state:
-      name: State
-      description: Media player state (playing, paused, idle, off).
       example: "playing"
+      selector:
+        select:
+          options:
+            - playing
+            - paused
     media_position:
-      name: Media position
-      description: Playback position in seconds.
       example: 12.5
+      selector:
+        number:
+          min: 0
+          max: 86400
+          step: 0.1
+          unit_of_measurement: s
+          mode: box
     media_duration:
-      name: Media duration
-      description: Media duration in seconds.
       example: 120.0
+      selector:
+        number:
+          min: 0
+          max: 86400
+          step: 0.1
+          unit_of_measurement: s
+          mode: box
     volume_level:
-      name: Volume level
-      description: Volume level from 0.0 to 1.0.
       example: 0.7
+      selector:
+        number:
+          min: 0
+          max: 1
+          step: 0.01
     is_volume_muted:
-      name: Volume muted
-      description: Whether playback is muted.
       example: true
+      selector:
+        boolean:
     repeat:
-      name: Repeat mode
-      description: Repeat setting reported by the frontend.
       example: "one"
-    shuffle:
-      name: Shuffle
-      description: Shuffle setting reported by the frontend.
-      example: false
+      selector:
+        select:
+          options:
+            - "off"
+            - one

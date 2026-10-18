@@ -8,17 +8,98 @@
           "name": "Name",
           "enable_cache": "Enable media cache",
           "restore_last_media": "Restore last media on startup"
+        },
+        "data_description": {
+          "name": "Shown as device and entity name, for example \"Living room screen\".",
+          "enable_cache": "Downloads HTTP(S) media into the local media folder (ha_dashboard_player_cache). Cached files are only served to logged-in users.",
+          "restore_last_media": "Shows the last media again after a Home Assistant restart."
         }
       }
+    },
+    "error": {
+      "name_required": "Please enter a name."
+    },
+    "abort": {
+      "already_configured": "A dashboard player with this name already exists."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "HA Dashboard Player Options",
+        "title": "HA Dashboard Player options",
         "data": {
           "enable_cache": "Enable media cache",
           "restore_last_media": "Restore last media on startup"
+        },
+        "data_description": {
+          "enable_cache": "Downloads HTTP(S) media into the local media folder (ha_dashboard_player_cache). Cached files are only served to logged-in users.",
+          "restore_last_media": "Shows the last media again after a Home Assistant restart."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "unresolvable_media": {
+      "message": "Unable to resolve media {media_content_id}: {error}"
+    },
+    "unsupported_media": {
+      "message": "Unsupported media {media_content_id}. Use a media-source ID, an http(s) URL or a path starting with /."
+    },
+    "cache_disabled": {
+      "message": "The media cache is disabled for this player. Enable it in the integration options."
+    },
+    "invalid_cache_url": {
+      "message": "Only http(s) URLs can be cached: {url}"
+    },
+    "cache_file_too_large": {
+      "message": "{url} is larger than the cache limit of {limit_mb} MB."
+    },
+    "cache_download_failed": {
+      "message": "Downloading {url} failed: {error}"
+    }
+  },
+  "services": {
+    "preload_media": {
+      "name": "Preload media",
+      "description": "Downloads a media URL into the player's cache.",
+      "fields": {
+        "media_url": {
+          "name": "Media URL",
+          "description": "HTTP or HTTPS URL to download."
+        }
+      }
+    },
+    "clear_screen": {
+      "name": "Clear screen",
+      "description": "Stops playback and shows a blank screen."
+    },
+    "report_state": {
+      "name": "Report state",
+      "description": "Used by the dashboard card to report playback feedback. Not intended for manual use.",
+      "fields": {
+        "state": {
+          "name": "State",
+          "description": "Playback state of the card."
+        },
+        "media_position": {
+          "name": "Media position",
+          "description": "Playback position in seconds."
+        },
+        "media_duration": {
+          "name": "Media duration",
+          "description": "Media duration in seconds."
+        },
+        "volume_level": {
+          "name": "Volume level",
+          "description": "Volume from 0.0 to 1.0."
+        },
+        "is_volume_muted": {
+          "name": "Muted",
+          "description": "Whether playback is muted."
+        },
+        "repeat": {
+          "name": "Repeat",
+          "description": "Repeat mode of the card."
         }
       }
     }

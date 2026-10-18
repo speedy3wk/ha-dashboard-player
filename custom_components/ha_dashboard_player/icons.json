@@ -1,0 +1,13 @@
+{
+  "services": {
+    "preload_media": {
+      "service": "mdi:download"
+    },
+    "clear_screen": {
+      "service": "mdi:monitor-off"
+    },
+    "report_state": {
+      "service": "mdi:sync"
+    }
+  }
+}

@@ -3,13 +3,24 @@
     "step": {
       "user": {
         "title": "HA Dashboard Player",
-        "description": "Erstellt einen virtuellen Media Player fuer die Dashboard-Wiedergabe.",
+        "description": "Erstellt einen virtuellen Media Player für die Dashboard-Wiedergabe.",
         "data": {
           "name": "Name",
           "enable_cache": "Media-Cache aktivieren",
           "restore_last_media": "Letzte Medien beim Start wiederherstellen"
+        },
+        "data_description": {
+          "name": "Wird als Geräte- und Entitätsname angezeigt, z. B. „Wohnzimmer Bildschirm“.",
+          "enable_cache": "Lädt HTTP(S)-Medien in den lokalen Medienordner (ha_dashboard_player_cache). Gecachte Dateien sind nur für angemeldete Benutzer abrufbar.",
+          "restore_last_media": "Zeigt die zuletzt gespielten Medien nach einem Neustart von Home Assistant wieder an."
         }
       }
+    },
+    "error": {
+      "name_required": "Bitte einen Namen eingeben."
+    },
+    "abort": {
+      "already_configured": "Ein Dashboard Player mit diesem Namen existiert bereits."
     }
   },
   "options": {
@@ -19,6 +30,76 @@
         "data": {
           "enable_cache": "Media-Cache aktivieren",
           "restore_last_media": "Letzte Medien beim Start wiederherstellen"
+        },
+        "data_description": {
+          "enable_cache": "Lädt HTTP(S)-Medien in den lokalen Medienordner (ha_dashboard_player_cache). Gecachte Dateien sind nur für angemeldete Benutzer abrufbar.",
+          "restore_last_media": "Zeigt die zuletzt gespielten Medien nach einem Neustart von Home Assistant wieder an."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "unresolvable_media": {
+      "message": "Medium {media_content_id} konnte nicht aufgelöst werden: {error}"
+    },
+    "unsupported_media": {
+      "message": "Nicht unterstütztes Medium {media_content_id}. Verwende eine Media-Source-ID, eine http(s)-URL oder einen Pfad, der mit / beginnt."
+    },
+    "cache_disabled": {
+      "message": "Der Media-Cache ist für diesen Player deaktiviert. Aktiviere ihn in den Optionen der Integration."
+    },
+    "invalid_cache_url": {
+      "message": "Nur http(s)-URLs können gecacht werden: {url}"
+    },
+    "cache_file_too_large": {
+      "message": "{url} ist größer als das Cache-Limit von {limit_mb} MB."
+    },
+    "cache_download_failed": {
+      "message": "Download von {url} fehlgeschlagen: {error}"
+    }
+  },
+  "services": {
+    "preload_media": {
+      "name": "Medien vorladen",
+      "description": "Lädt eine Medien-URL in den Cache des Players.",
+      "fields": {
+        "media_url": {
+          "name": "Medien-URL",
+          "description": "HTTP- oder HTTPS-URL zum Herunterladen."
+        }
+      }
+    },
+    "clear_screen": {
+      "name": "Bildschirm leeren",
+      "description": "Stoppt die Wiedergabe und zeigt einen leeren Bildschirm."
+    },
+    "report_state": {
+      "name": "Status melden",
+      "description": "Wird von der Dashboard-Karte genutzt, um den Wiedergabestatus zu melden. Nicht für die manuelle Nutzung gedacht.",
+      "fields": {
+        "state": {
+          "name": "Status",
+          "description": "Wiedergabestatus der Karte."
+        },
+        "media_position": {
+          "name": "Position",
+          "description": "Wiedergabeposition in Sekunden."
+        },
+        "media_duration": {
+          "name": "Dauer",
+          "description": "Mediendauer in Sekunden."
+        },
+        "volume_level": {
+          "name": "Lautstärke",
+          "description": "Lautstärke von 0,0 bis 1,0."
+        },
+        "is_volume_muted": {
+          "name": "Stumm",
+          "description": "Ob die Wiedergabe stummgeschaltet ist."
+        },
+        "repeat": {
+          "name": "Wiederholen",
+          "description": "Wiederholungsmodus der Karte."
         }
       }
     }
