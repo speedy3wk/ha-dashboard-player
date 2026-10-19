@@ -61,6 +61,7 @@ background: "#000000"
 | `fullscreen` | `false` | Fill the viewport (use in a panel view). |
 | `kiosk_compat` | `false` | Always play muted. Only needed for browsers that block autoplay with sound; the Chromium Kiosk App allows autoplay with sound. |
 | `report_state` | `true` | Report playback progress to Home Assistant. Disable it on additional screens that show the same entity, so only one screen reports. |
+| `debug` | `false` | Show a compact, read-only playback diagnostics overlay. Also available in the visual card editor. |
 
 If a browser blocks autoplay with sound, the card automatically falls back to muted playback.
 
@@ -117,6 +118,24 @@ Change these under **Settings > Devices & services > HA Dashboard Player > Confi
 - Enable hardware video decoding in the Chromium Kiosk App (`hw_video_decode`) for smooth high-resolution video on supported GPUs.
 - When no screen reports for 15 seconds while playing, the media position is cleared, because it is unknown.
 
+### Playback diagnostics
+
+Enable **Show playback diagnostics** in the card settings (or set `debug: true` in YAML). No mouse or keyboard is needed on the playback screen. The overlay ignores pointer input and updates only its own text once per second, without rebuilding the player or sending additional reports to Home Assistant. Disabling it or removing the card stops the diagnostic timer.
+
+The overlay shows:
+- Card version, entity, HA state, reporting setting, page visibility and browser user agent.
+- Playback time, duration, speed, buffered seconds ahead, ready/network state and media error code.
+- Video resolution, displayed CSS size and device pixel ratio.
+- Approximate non-dropped frames per second, total/dropped frames, drop percentage and drops since the previous sample, where the browser supports `getVideoPlaybackQuality()`. These are browser playback counters, not a measurement of HDMI refresh rate or proof of hardware decoding.
+- `waiting`, `stalled` and `seeking` event counts, the last event, HA-triggered seek corrections and the last correction's signed time difference.
+- Card state-update and source-load counts. Updates do not mean DOM rebuilds.
+
+Event, correction, update and load counters start when diagnostics are enabled; frame counters refer to the browser's current media playback. The first frame-rate sample is unavailable until the next update. The overlay does not display media URLs or authentication tokens.
+
+Rising dropped frames with a healthy buffer point toward a decoding/rendering bottleneck; an empty buffer and `waiting` events suggest media delivery cannot keep up. Increasing HA seek corrections indicate position synchronization is intervening. These are clues, not definitive diagnoses. Codec and active hardware-decoder details are not reliably exposed to web pages; use Chromium's `chrome://media-internals` for those.
+
+The overlay itself can affect compositing and timing. Compare playback with diagnostics disabled as well.
+
 ## Development
 
 ```bash
@@ -124,6 +143,7 @@ python3.14 -m venv .venv && . .venv/bin/activate
 pip install -r requirements_test.txt ruff
 ruff check . && ruff format --check .
 pytest
+node --test tests/frontend/*.test.mjs
 ```
 
 Created with AI tools, reviewed by me.

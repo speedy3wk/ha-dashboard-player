@@ -35,4 +35,4 @@ async def test_card_registered_as_module(hass: HomeAssistant) -> None:
 
     url = mock_add_extra_js_url.call_args.args[1]
     assert url.startswith(f"{FRONTEND_URL_BASE}/{FRONTEND_SCRIPT}?v=")
-    assert url.endswith("0.2.0")
+    assert url.endswith("0.2.1")

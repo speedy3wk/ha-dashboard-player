@@ -18,6 +18,7 @@ jobs:
         with:
           node-version: 22
       - run: node --check custom_components/ha_dashboard_player/frontend/ha-dashboard-player.js
+      - run: node --test tests/frontend/*.test.mjs
 
   pytest:
     runs-on: ubuntu-latest

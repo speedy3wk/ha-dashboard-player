@@ -1,6 +1,6 @@
 /* HA Dashboard Player card */
 
-const CARD_VERSION = "0.2.0";
+const CARD_VERSION = "0.2.1";
 const INTEGRATION = "ha_dashboard_player";
 const MEDIA_SOURCE_PREFIX = "media-source://";
 const SIGNED_URL_EXPIRES = 24 * 60 * 60;
@@ -15,6 +15,7 @@ const DEFAULT_CONFIG = {
   fullscreen: false,
   kiosk_compat: false,
   report_state: true,
+  debug: false,
 };
 
 const LOCALIZATION = {
@@ -27,6 +28,10 @@ const LOCALIZATION = {
     report_state: "Report playback to Home Assistant",
     report_state_helper:
       "Disable on secondary screens that show the same player.",
+    debug: "Show playback diagnostics",
+    debug_helper: "Read-only overlay for diagnosing playback on kiosk screens.",
+    debug_idle: "No active media",
+    debug_decoder: "HW decoder / codec: not exposed by the browser",
     fit: "Fit",
     background: "Background (CSS color)",
   },
@@ -39,6 +44,10 @@ const LOCALIZATION = {
     report_state: "Wiedergabe an Home Assistant melden",
     report_state_helper:
       "Auf weiteren Bildschirmen mit demselben Player deaktivieren.",
+    debug: "Wiedergabe-Diagnose anzeigen",
+    debug_helper: "Nur lesbare Diagnose-Anzeige zur Fehlersuche auf Kiosk-Bildschirmen.",
+    debug_idle: "Keine aktiven Medien",
+    debug_decoder: "HW-Decoder / Codec: vom Browser nicht offengelegt",
     fit: "Anpassen",
     background: "Hintergrund (CSS-Farbe)",
   },
@@ -97,6 +106,25 @@ TEMPLATE.innerHTML = `
     img {
       object-fit: var(--ha-dashboard-player-fit, contain);
     }
+    .debug {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      z-index: 1;
+      box-sizing: border-box;
+      max-width: calc(100% - 16px);
+      max-height: calc(100% - 16px);
+      overflow: hidden;
+      margin: 0;
+      padding: 8px 10px;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.8);
+      font: 12px/1.4 monospace;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      pointer-events: none;
+      user-select: none;
+    }
     .hidden {
       display: none;
     }
@@ -105,6 +133,7 @@ TEMPLATE.innerHTML = `
     <video class="hidden" playsinline></video>
     <audio class="hidden"></audio>
     <img class="hidden" alt="" />
+    <pre class="debug hidden" aria-hidden="true"></pre>
   </div>
 `;
 
@@ -122,6 +151,8 @@ class HADashboardPlayerCard extends HTMLElement {
     this._suppressEvents = false;
     this._autoMuted = false;
     this._resolved = new Map();
+    this._debug = null;
+    this._debugTimer = null;
   }
 
   static getConfigForm() {
@@ -155,15 +186,16 @@ class HADashboardPlayerCard extends HTMLElement {
             { name: "fullscreen", selector: { boolean: {} } },
             { name: "kiosk_compat", selector: { boolean: {} } },
             { name: "report_state", selector: { boolean: {} } },
+            { name: "debug", selector: { boolean: {} } },
           ],
         },
       ],
       computeLabel: (schema) =>
         localize(schema.name, document.querySelector("home-assistant")?.hass?.language),
       computeHelper: (schema) =>
-        schema.name === "report_state"
+        ["report_state", "debug"].includes(schema.name)
           ? localize(
-              "report_state_helper",
+              `${schema.name}_helper`,
               document.querySelector("home-assistant")?.hass?.language
             )
           : undefined,
@@ -195,11 +227,12 @@ class HADashboardPlayerCard extends HTMLElement {
         audio: this.shadowRoot.querySelector("audio"),
         image: this.shadowRoot.querySelector("img"),
       };
+      this._debugElement = this.shadowRoot.querySelector(".debug");
       this._bindEvents();
     }
 
     this._applyConfig();
-    this._stateObj = null;
+    this._stateObj = this._hass?.states[this._config.entity];
     this._render();
   }
 
@@ -226,10 +259,12 @@ class HADashboardPlayerCard extends HTMLElement {
   }
 
   disconnectedCallback() {
+    this._stopDebugTimer();
     this._unload();
   }
 
   connectedCallback() {
+    this._syncDebug();
     if (this._config && this._hass) {
       this._stateObj = null;
       this.hass = this._hass;
@@ -245,10 +280,131 @@ class HADashboardPlayerCard extends HTMLElement {
       element.autoplay = Boolean(this._config.autoplay);
       element.preload = "auto";
     }
+    this._syncDebug();
+  }
+
+  _stopDebugTimer() {
+    if (this._debugTimer !== null) {
+      clearInterval(this._debugTimer);
+      this._debugTimer = null;
+    }
+    if (this._debug) this._debug.sample = null;
+  }
+
+  _syncDebug() {
+    if (!this._debugElement) return;
+    const enabled = Boolean(this._config?.debug);
+    this._debugElement.classList.toggle("hidden", !enabled);
+    if (!enabled) {
+      this._stopDebugTimer();
+      this._debug = null;
+      this._debugElement.textContent = "";
+      return;
+    }
+    this._debug ||= {
+      renders: 0,
+      loads: 0,
+      waiting: 0,
+      stalled: 0,
+      seeking: 0,
+      corrections: 0,
+      lastCorrection: null,
+      lastEvent: "-",
+      sample: null,
+    };
+    this._updateDebug();
+    if (this.isConnected && this._debugTimer === null) {
+      this._debugTimer = setInterval(() => this._updateDebug(), 1000);
+    }
+  }
+
+  _updateDebug() {
+    if (!this._debug || !this._debugElement) return;
+    const debug = this._debug;
+    const language = this._hass?.language;
+    const lines = [
+      `HA Dashboard Player ${CARD_VERSION} | ${this._config.entity}`,
+      `HA: ${this._stateObj?.state || "-"} | reports: ${Boolean(this._config.report_state)} | visibility: ${document.visibilityState}`,
+    ];
+    const active = this._active;
+    const number = (value) => Number.isFinite(value) ? value.toFixed(1) : "-";
+    if (active && active.kind !== "image") {
+      const element = active.element;
+      const ready = ["nothing", "metadata", "current", "future", "enough"];
+      const network = ["empty", "idle", "loading", "no source"];
+      let buffered = 0;
+      for (let i = 0; i < element.buffered.length; i++) {
+        if (
+          element.buffered.start(i) <= element.currentTime &&
+          element.currentTime <= element.buffered.end(i)
+        ) {
+          buffered = element.buffered.end(i) - element.currentTime;
+          break;
+        }
+      }
+      lines.push(
+        `${active.kind}: ${element.paused ? "paused" : "playing"} | seeking: ${element.seeking} | ended: ${element.ended}`,
+        `time: ${number(element.currentTime)} / ${number(element.duration)} s | rate: ${element.playbackRate}x | buffer: ${number(buffered)} s`,
+        `ready: ${ready[element.readyState] ?? "-"} | network: ${network[element.networkState] ?? "-"} | error: ${element.error?.code ?? "-"}`,
+      );
+      if (active.kind === "video") {
+        const rect = element.getBoundingClientRect();
+        lines.push(
+          `video: ${element.videoWidth}x${element.videoHeight} | CSS: ${Math.round(rect.width)}x${Math.round(rect.height)} | DPR: ${window.devicePixelRatio}`,
+        );
+        const quality = element.getVideoPlaybackQuality?.();
+        if (quality) {
+          const now = performance.now();
+          const total = quality.totalVideoFrames;
+          const dropped = quality.droppedVideoFrames;
+          const previous = debug.sample;
+          let fps = "-";
+          let recentDrops = "-";
+          if (
+            previous &&
+            now > previous.time &&
+            total >= previous.total &&
+            dropped >= previous.dropped
+          ) {
+            const displayed = (total - dropped) - (previous.total - previous.dropped);
+            fps = number(Math.max(0, displayed) * 1000 / (now - previous.time));
+            recentDrops = String(dropped - previous.dropped);
+          }
+          debug.sample = { time: now, total, dropped };
+          lines.push(
+            `frames/s: ${fps} | frames: ${total} | dropped: ${dropped} (${number(total ? dropped * 100 / total : 0)}%) | drops/interval: ${recentDrops}`,
+          );
+        } else {
+          lines.push("frames/s / dropped: n/a (API)");
+        }
+        lines.push(localize("debug_decoder", language));
+      }
+    } else {
+      lines.push(active?.kind || localize("debug_idle", language));
+    }
+    lines.push(
+      `events: waiting ${debug.waiting} | stalled ${debug.stalled} | seeking ${debug.seeking} | last: ${debug.lastEvent}`,
+      `HA seek corrections: ${debug.corrections} | last delta: ${number(debug.lastCorrection)} s`,
+      `updates: ${debug.renders} | source loads: ${debug.loads}`,
+      navigator.userAgent,
+    );
+    const text = lines.join("\n");
+    if (this._debugElement.textContent !== text) {
+      this._debugElement.textContent = text;
+    }
   }
 
   _bindEvents() {
     for (const element of [this._elements.video, this._elements.audio]) {
+      for (const type of ["waiting", "stalled", "seeking", "seeked", "playing", "pause", "ended", "error"]) {
+        element.addEventListener(type, () => {
+          if (!this._debug || this._active?.element !== element) return;
+          this._debug.lastEvent = type;
+          if (["waiting", "stalled", "seeking"].includes(type)) {
+            this._debug[type]++;
+          }
+        });
+      }
       element.addEventListener("play", (ev) => this._onPlaybackEvent(ev, "playing"));
       element.addEventListener("pause", (ev) => this._onPause(ev));
       element.addEventListener("timeupdate", (ev) => this._onTimeUpdate(ev));
@@ -270,6 +426,7 @@ class HADashboardPlayerCard extends HTMLElement {
     if (!this._config || !this._hass || !this._elements) {
       return;
     }
+    if (this._debug) this._debug.renders++;
     const token = ++this._renderToken;
     const stateObj = this._stateObj;
     const attrs = stateObj?.attributes || {};
@@ -353,6 +510,11 @@ class HADashboardPlayerCard extends HTMLElement {
 
     this._unload(element);
     this._active = { kind, source, url, element };
+    if (this._debug) {
+      this._debug.loads++;
+      this._debug.sample = null;
+      this._debug.lastEvent = "load";
+    }
     this._lastReport = null;
     this._autoMuted = false;
     this._retriedSource = this._retriedSource === source ? source : null;
@@ -396,6 +558,10 @@ class HADashboardPlayerCard extends HTMLElement {
         element.readyState >= 1 &&
         Math.abs(element.currentTime - position) > SEEK_TOLERANCE_S
       ) {
+        if (this._debug) {
+          this._debug.corrections++;
+          this._debug.lastCorrection = position - element.currentTime;
+        }
         element.currentTime = position;
       }
     } finally {
