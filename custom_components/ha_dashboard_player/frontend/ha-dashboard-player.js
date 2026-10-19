@@ -1,6 +1,6 @@
 /* HA Dashboard Player card */
 
-const CARD_VERSION = "0.2.1";
+const CARD_VERSION = "0.3.0";
 const INTEGRATION = "ha_dashboard_player";
 const MEDIA_SOURCE_PREFIX = "media-source://";
 const SIGNED_URL_EXPIRES = 24 * 60 * 60;
@@ -433,11 +433,7 @@ class HADashboardPlayerCard extends HTMLElement {
     const state = stateObj?.state;
     const source = attrs.media_url || attrs.media_content_id;
 
-    if (
-      !source ||
-      !["playing", "paused"].includes(state) ||
-      (mediaKind(attrs) === "image" && state !== "playing")
-    ) {
+    if (!source || !["playing", "paused"].includes(state)) {
       this._unload();
       return;
     }
@@ -550,7 +546,9 @@ class HADashboardPlayerCard extends HTMLElement {
       if (typeof attrs.volume_level === "number") {
         element.volume = Math.min(1, Math.max(0, attrs.volume_level));
       }
-      element.loop = attrs.repeat === "one" || attrs.repeat === "all";
+      // Repeat all with a single item loops it; with a queue the backend advances.
+      element.loop =
+        attrs.repeat === "one" || (attrs.repeat === "all" && !(attrs.queue_size > 1));
 
       const position = this._targetPosition(state, attrs, serverNow);
       if (
@@ -641,9 +639,16 @@ class HADashboardPlayerCard extends HTMLElement {
       return;
     }
     if (this._shouldReport()) {
-      this._hass.callService("media_player", "media_stop", {
-        entity_id: this._config.entity,
-      });
+      // The backend advances the queue only for the item that is still current.
+      this._hass
+        .callService(INTEGRATION, "media_ended", {
+          entity_id: this._config.entity,
+          media_content_id: this._active.source,
+        })
+        .catch((err) =>
+          // eslint-disable-next-line no-console
+          console.debug("ha-dashboard-player: media_ended failed", err)
+        );
     }
   }
 

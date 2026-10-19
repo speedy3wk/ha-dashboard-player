@@ -7,12 +7,14 @@
         "data": {
           "name": "Name",
           "enable_cache": "Enable media cache",
-          "restore_last_media": "Restore last media on startup"
+          "restore_last_media": "Restore last media on startup",
+          "image_duration": "Image display duration"
         },
         "data_description": {
           "name": "Shown as device and entity name, for example \"Living room screen\".",
           "enable_cache": "Downloads HTTP(S) media into the local media folder (ha_dashboard_player_cache). Cached files are only served to logged-in users.",
-          "restore_last_media": "Shows the last media again after a Home Assistant restart."
+          "restore_last_media": "Shows the last media again after a Home Assistant restart.",
+          "image_duration": "Seconds each image is shown before a playlist advances to the next item."
         }
       }
     },
@@ -29,11 +31,13 @@
         "title": "HA Dashboard Player options",
         "data": {
           "enable_cache": "Enable media cache",
-          "restore_last_media": "Restore last media on startup"
+          "restore_last_media": "Restore last media on startup",
+          "image_duration": "Image display duration"
         },
         "data_description": {
           "enable_cache": "Downloads HTTP(S) media into the local media folder (ha_dashboard_player_cache). Cached files are only served to logged-in users.",
-          "restore_last_media": "Shows the last media again after a Home Assistant restart."
+          "restore_last_media": "Shows the last media again after a Home Assistant restart.",
+          "image_duration": "Seconds each image is shown before a playlist advances to the next item."
         }
       }
     }
@@ -56,6 +60,9 @@
     },
     "cache_download_failed": {
       "message": "Downloading {url} failed: {error}"
+    },
+    "empty_folder": {
+      "message": "Folder {media_content_id} contains no playable media."
     }
   },
   "services": {
@@ -100,6 +107,16 @@
         "repeat": {
           "name": "Repeat",
           "description": "Repeat mode of the card."
+        }
+      }
+    },
+    "media_ended": {
+      "name": "Media ended",
+      "description": "Used by the dashboard card to report that an item finished playing so the playlist advances. Not intended for manual use.",
+      "fields": {
+        "media_content_id": {
+          "name": "Media content ID",
+          "description": "Source of the item that ended. Ignored if it is no longer the current item."
         }
       }
     }

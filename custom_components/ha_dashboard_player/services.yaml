@@ -66,3 +66,15 @@ report_state:
           options:
             - "off"
             - one
+            - all
+
+media_ended:
+  target:
+    entity:
+      integration: ha_dashboard_player
+      domain: media_player
+  fields:
+    media_content_id:
+      example: "media-source://media_source/local/video.mp4"
+      selector:
+        text:

@@ -9,10 +9,17 @@ PLATFORMS: Final = [Platform.MEDIA_PLAYER]
 
 CONF_ENABLE_CACHE: Final = "enable_cache"
 CONF_RESTORE_LAST_MEDIA: Final = "restore_last_media"
+CONF_IMAGE_DURATION: Final = "image_duration"
 
 DEFAULT_NAME: Final = "Dashboard Player"
 DEFAULT_ENABLE_CACHE: Final = False
 DEFAULT_RESTORE_LAST_MEDIA: Final = True
+DEFAULT_IMAGE_DURATION: Final = 10
+MIN_IMAGE_DURATION: Final = 1
+MAX_IMAGE_DURATION: Final = 3600
+
+MAX_QUEUE_SIZE: Final = 500
+PREVIOUS_RESTART_SECONDS: Final = 3.0
 
 FRONTEND_URL_BASE: Final = f"/{DOMAIN}_static"
 FRONTEND_SCRIPT: Final = "ha-dashboard-player.js"
@@ -35,12 +42,16 @@ ATTR_MEDIA_KIND: Final = "media_kind"
 ATTR_CACHE_ENABLED: Final = "cache_enabled"
 ATTR_LAST_ERROR: Final = "last_error"
 ATTR_INTEGRATION: Final = "ha_dashboard_player"
+ATTR_QUEUE_POSITION: Final = "queue_position"
+ATTR_QUEUE_SIZE: Final = "queue_size"
 
 SERVICE_PRELOAD_MEDIA: Final = "preload_media"
 SERVICE_CLEAR_SCREEN: Final = "clear_screen"
 SERVICE_REPORT_STATE: Final = "report_state"
+SERVICE_MEDIA_ENDED: Final = "media_ended"
 
 SERVICE_FIELD_MEDIA_URL: Final = "media_url"
+SERVICE_FIELD_MEDIA_CONTENT_ID: Final = "media_content_id"
 SERVICE_FIELD_STATE: Final = "state"
 SERVICE_FIELD_MEDIA_POSITION: Final = "media_position"
 SERVICE_FIELD_MEDIA_DURATION: Final = "media_duration"

@@ -17,11 +17,15 @@ import probatio
 
 from .const import (
     CONF_ENABLE_CACHE,
+    CONF_IMAGE_DURATION,
     CONF_RESTORE_LAST_MEDIA,
     DEFAULT_ENABLE_CACHE,
+    DEFAULT_IMAGE_DURATION,
     DEFAULT_NAME,
     DEFAULT_RESTORE_LAST_MEDIA,
     DOMAIN,
+    MAX_IMAGE_DURATION,
+    MIN_IMAGE_DURATION,
 )
 
 OPTIONS_SCHEMA = probatio.Schema(
@@ -32,6 +36,20 @@ OPTIONS_SCHEMA = probatio.Schema(
         probatio.Required(
             CONF_RESTORE_LAST_MEDIA, default=DEFAULT_RESTORE_LAST_MEDIA
         ): selector.BooleanSelector(),
+        probatio.Required(
+            CONF_IMAGE_DURATION, default=DEFAULT_IMAGE_DURATION
+        ): probatio.All(
+            selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=MIN_IMAGE_DURATION,
+                    max=MAX_IMAGE_DURATION,
+                    step=1,
+                    unit_of_measurement="s",
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
+            probatio.Coerce(int),
+        ),
     }
 )
 
@@ -62,6 +80,7 @@ class HADashboardPlayerConfigFlow(ConfigFlow, domain=DOMAIN):
                     options={
                         CONF_ENABLE_CACHE: user_input[CONF_ENABLE_CACHE],
                         CONF_RESTORE_LAST_MEDIA: user_input[CONF_RESTORE_LAST_MEDIA],
+                        CONF_IMAGE_DURATION: user_input[CONF_IMAGE_DURATION],
                     },
                 )
 
@@ -96,6 +115,7 @@ class HADashboardPlayerOptionsFlow(OptionsFlowWithReload):
             for key, default in (
                 (CONF_ENABLE_CACHE, DEFAULT_ENABLE_CACHE),
                 (CONF_RESTORE_LAST_MEDIA, DEFAULT_RESTORE_LAST_MEDIA),
+                (CONF_IMAGE_DURATION, DEFAULT_IMAGE_DURATION),
             )
         }
         return self.async_show_form(

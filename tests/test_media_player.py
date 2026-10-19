@@ -206,7 +206,7 @@ async def test_pause_play_freezes_position(
 
 @pytest.mark.usefixtures("setup_integration")
 async def test_seek_and_repeat(hass: HomeAssistant) -> None:
-    """Seek sets the position, repeat all is coerced to one."""
+    """Seek sets the position, repeat all is kept for the queue."""
     await _play(hass, VIDEO_URL)
     await hass.services.async_call(
         MP_DOMAIN,
@@ -222,7 +222,7 @@ async def test_seek_and_repeat(hass: HomeAssistant) -> None:
     )
     state = hass.states.get(ENTITY_ID)
     assert state.attributes["media_position"] == 42
-    assert state.attributes[ATTR_MEDIA_REPEAT] == "one"
+    assert state.attributes[ATTR_MEDIA_REPEAT] == "all"
 
 
 @pytest.mark.usefixtures("setup_integration")
@@ -446,7 +446,8 @@ async def test_restore_migrates_signed_url(
     assert state.attributes["media_url"] == "media-source://media_source/local/a.mp4"
     assert state.attributes["media_kind"] == "video"
     assert state.attributes["volume_level"] == 0.3
-    assert state.attributes[ATTR_MEDIA_REPEAT] == "one"
+    assert state.attributes[ATTR_MEDIA_REPEAT] == "all"
+    assert state.attributes["queue_size"] == 1
 
 
 @pytest.mark.parametrize(

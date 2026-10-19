@@ -5,7 +5,8 @@ A Home Assistant custom integration that provides a virtual `media_player` entit
 Play images, videos and audio from the Home Assistant **Media** panel, automations or scripts. The card on the screen renders the media and reports progress back to Home Assistant.
 
 ## Features
-- `media_player` entity with play, pause, stop, seek, volume, mute and repeat.
+- `media_player` entity with play, pause, stop, seek, volume, mute, repeat and shuffle.
+- **Playlists** the Home Assistant way: queue items with `enqueue`, skip with next/previous, clear the playlist, and play whole media folders.
 - Displays images, video and audio (audio is shown on the background color).
 - **Media Source first:** browse and play everything from Settings > Media (local media, cameras, TTS, …). Media is resolved by the screen with short-lived signed URLs, so nothing has to be publicly reachable.
 - Optional cache for remote HTTP(S) media in the authenticated local media folder.
@@ -37,7 +38,7 @@ Version 0.2.0 changed how the card is delivered and where media is cached:
 
 Other changes:
 - Entity names are no longer slugified. Version 0.1.x converted names to `snake_case`, based on a Home Assistant entity-ID rule that does not exist. Existing entity IDs are kept; new entries get the name exactly as entered.
-- Shuffle was removed, because the player always plays a single item.
+- Shuffle was removed, because the player always plays a single item. Version 0.3.0 adds it back together with playlists.
 - Restored media that was saved as an expiring signed URL is migrated to its media source ID automatically.
 
 ## Lovelace card
@@ -100,18 +101,51 @@ Supported `media_content_id` values:
 
 The media type is detected from the MIME type, `media_content_type` (`image`, `video`, `audio`/`music`) or the file extension.
 
+### Playlists
+The player keeps its own queue and uses the standard media player features, so the Media panel, the media control card, Music Assistant style automations and voice assistants work without extra configuration.
+
+Add items with `enqueue`:
+
+```yaml
+action: media_player.play_media
+target:
+  entity_id: media_player.living_room
+data:
+  media_content_id: media-source://media_source/local/videos/news.mp4
+  media_content_type: video
+  enqueue: add  # replace (default), play, next or add
+```
+
+| `enqueue` | Effect |
+| --- | --- |
+| `replace` | Clear the queue and play the new item (default). |
+| `play` | Insert after the current item and play it now. |
+| `next` | Insert after the current item. |
+| `add` | Append to the end. |
+
+- **Folders:** pick a folder in the Media panel (or pass its `media-source://media_source/local/…` ID) to play all media files directly inside it in name order. Subfolders are not included.
+- **Next / previous:** `media_player.media_next_track` and `media_player.media_previous_track`. Previous restarts the current item when it played for more than 3 seconds.
+- **Repeat:** `off` stops after the last item, `all` loops the queue, `one` repeats the current item.
+- **Shuffle:** `media_player.shuffle_set` shuffles the remaining items; turning it off restores the original order.
+- **Clear:** `media_player.clear_playlist` removes all items except the current one. `media_stop` and `clear_screen` clear the whole queue.
+- **Images** advance after the *image display duration* option (default 10 seconds). Pausing stops the slideshow.
+- **Video and audio** advance when a screen reports the end of playback. At least one card with `report_state: true` must show the player; otherwise the queue stays on the current item.
+- The attributes `queue_position` and `queue_size` show where the player is in the queue (max. 500 items). The queue is restored after a restart when *Restore last media* is enabled.
+
 ### Actions
 | Action | Description |
 | --- | --- |
 | `ha_dashboard_player.preload_media` | Download a URL into the cache, so it plays instantly and offline later. Requires the cache option. |
 | `ha_dashboard_player.clear_screen` | Stop and show the background only. |
 | `ha_dashboard_player.report_state` | Used by the card to report playback; not meant for manual use. |
+| `ha_dashboard_player.media_ended` | Used by the card to report the end of an item, so the playlist advances; not meant for manual use. |
 
 ## Options
 Change these under **Settings > Devices & services > HA Dashboard Player > Configure**:
 
 - **Cache remote media:** HTTP(S) URLs are stored in `<local media folder>/ha_dashboard_player_cache` (on HAOS `/media/ha_dashboard_player_cache`). The first playback streams from the source and caches in the background; subsequent plays use the cached copy. The limits are 2 GiB per file and 10 GiB in total, and the oldest files are removed first.
-- **Restore last media:** Resume the last media after a Home Assistant restart.
+- **Restore last media:** Resume the last media and the playlist after a Home Assistant restart.
+- **Image display duration:** Seconds each image is shown before a playlist advances (1–3600, default 10).
 
 ## Kiosk notes
 - HDMI audio is handled by the HAOS host. Select HDMI as the host audio output.

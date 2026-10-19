@@ -11,6 +11,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.ha_dashboard_player.const import (
     CONF_ENABLE_CACHE,
+    CONF_IMAGE_DURATION,
     CONF_RESTORE_LAST_MEDIA,
     DOMAIN,
 )
@@ -32,6 +33,7 @@ async def test_user_flow(hass: HomeAssistant) -> None:
             CONF_NAME: "  Küche Display ",
             CONF_ENABLE_CACHE: True,
             CONF_RESTORE_LAST_MEDIA: False,
+            CONF_IMAGE_DURATION: 30.0,
         },
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -40,6 +42,7 @@ async def test_user_flow(hass: HomeAssistant) -> None:
     assert result["options"] == {
         CONF_ENABLE_CACHE: True,
         CONF_RESTORE_LAST_MEDIA: False,
+        CONF_IMAGE_DURATION: 30,
     }
 
 
@@ -97,4 +100,34 @@ async def test_options_flow(hass: HomeAssistant, config_entry: MockConfigEntry) 
     assert config_entry.options == {
         CONF_ENABLE_CACHE: True,
         CONF_RESTORE_LAST_MEDIA: False,
+        CONF_IMAGE_DURATION: 10,
     }
+
+
+async def test_options_flow_image_duration(
+    hass: HomeAssistant, config_entry: MockConfigEntry
+) -> None:
+    """The image duration is stored as whole seconds and validated."""
+    config_entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(config_entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_ENABLE_CACHE: False,
+            CONF_RESTORE_LAST_MEDIA: True,
+            CONF_IMAGE_DURATION: 45.0,
+        },
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert config_entry.options[CONF_IMAGE_DURATION] == 45
+
+    result = await hass.config_entries.options.async_init(config_entry.entry_id)
+    with pytest.raises(Exception, match="image_duration"):
+        await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {
+                CONF_ENABLE_CACHE: False,
+                CONF_RESTORE_LAST_MEDIA: True,
+                CONF_IMAGE_DURATION: 0,
+            },
+        )

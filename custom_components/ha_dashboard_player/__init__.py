@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -13,8 +14,10 @@ from .cache import MediaCache
 from .card import async_register_frontend
 from .const import (
     CONF_ENABLE_CACHE,
+    CONF_IMAGE_DURATION,
     CONF_RESTORE_LAST_MEDIA,
     DEFAULT_ENABLE_CACHE,
+    DEFAULT_IMAGE_DURATION,
     DEFAULT_RESTORE_LAST_MEDIA,
     DOMAIN,
     PLATFORMS,
@@ -30,12 +33,13 @@ class DashboardPlayerData:
 
     restore_last_media: bool
     cache: MediaCache | None
+    image_duration: float = DEFAULT_IMAGE_DURATION
 
 
 type DashboardPlayerConfigEntry = ConfigEntry[DashboardPlayerData]
 
 
-def get_entry_option(entry: ConfigEntry, key: str, default: bool) -> bool:
+def get_entry_option(entry: ConfigEntry, key: str, default: Any) -> Any:
     """Return an option, falling back to the initial config entry data."""
     return entry.options.get(key, entry.data.get(key, default))
 
@@ -60,6 +64,9 @@ async def async_setup_entry(
             entry, CONF_RESTORE_LAST_MEDIA, DEFAULT_RESTORE_LAST_MEDIA
         ),
         cache=cache,
+        image_duration=float(
+            get_entry_option(entry, CONF_IMAGE_DURATION, DEFAULT_IMAGE_DURATION)
+        ),
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True

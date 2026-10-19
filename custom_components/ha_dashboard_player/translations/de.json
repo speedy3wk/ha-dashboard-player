@@ -7,12 +7,14 @@
         "data": {
           "name": "Name",
           "enable_cache": "Media-Cache aktivieren",
-          "restore_last_media": "Letzte Medien beim Start wiederherstellen"
+          "restore_last_media": "Letzte Medien beim Start wiederherstellen",
+          "image_duration": "Anzeigedauer für Bilder"
         },
         "data_description": {
           "name": "Wird als Geräte- und Entitätsname angezeigt, z. B. „Wohnzimmer Bildschirm“.",
           "enable_cache": "Lädt HTTP(S)-Medien in den lokalen Medienordner (ha_dashboard_player_cache). Gecachte Dateien sind nur für angemeldete Benutzer abrufbar.",
-          "restore_last_media": "Zeigt die zuletzt gespielten Medien nach einem Neustart von Home Assistant wieder an."
+          "restore_last_media": "Zeigt die zuletzt gespielten Medien nach einem Neustart von Home Assistant wieder an.",
+          "image_duration": "Sekunden, die jedes Bild angezeigt wird, bevor eine Playlist zum nächsten Eintrag wechselt."
         }
       }
     },
@@ -29,11 +31,13 @@
         "title": "HA Dashboard Player Optionen",
         "data": {
           "enable_cache": "Media-Cache aktivieren",
-          "restore_last_media": "Letzte Medien beim Start wiederherstellen"
+          "restore_last_media": "Letzte Medien beim Start wiederherstellen",
+          "image_duration": "Anzeigedauer für Bilder"
         },
         "data_description": {
           "enable_cache": "Lädt HTTP(S)-Medien in den lokalen Medienordner (ha_dashboard_player_cache). Gecachte Dateien sind nur für angemeldete Benutzer abrufbar.",
-          "restore_last_media": "Zeigt die zuletzt gespielten Medien nach einem Neustart von Home Assistant wieder an."
+          "restore_last_media": "Zeigt die zuletzt gespielten Medien nach einem Neustart von Home Assistant wieder an.",
+          "image_duration": "Sekunden, die jedes Bild angezeigt wird, bevor eine Playlist zum nächsten Eintrag wechselt."
         }
       }
     }
@@ -56,6 +60,9 @@
     },
     "cache_download_failed": {
       "message": "Download von {url} fehlgeschlagen: {error}"
+    },
+    "empty_folder": {
+      "message": "Der Ordner {media_content_id} enthält keine abspielbaren Medien."
     }
   },
   "services": {
@@ -100,6 +107,16 @@
         "repeat": {
           "name": "Wiederholen",
           "description": "Wiederholungsmodus der Karte."
+        }
+      }
+    },
+    "media_ended": {
+      "name": "Medium beendet",
+      "description": "Wird von der Dashboard-Karte genutzt, um das Ende eines Eintrags zu melden, damit die Playlist weiterschaltet. Nicht für die manuelle Nutzung gedacht.",
+      "fields": {
+        "media_content_id": {
+          "name": "Medien-ID",
+          "description": "Quelle des beendeten Eintrags. Wird ignoriert, wenn sie nicht mehr der aktuelle Eintrag ist."
         }
       }
     }

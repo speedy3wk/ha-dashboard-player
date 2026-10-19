@@ -15,6 +15,7 @@ from .const import (
     DOMAIN,
     SERVICE_CLEAR_SCREEN,
     SERVICE_FIELD_IS_VOLUME_MUTED,
+    SERVICE_FIELD_MEDIA_CONTENT_ID,
     SERVICE_FIELD_MEDIA_DURATION,
     SERVICE_FIELD_MEDIA_POSITION,
     SERVICE_FIELD_MEDIA_URL,
@@ -22,6 +23,7 @@ from .const import (
     SERVICE_FIELD_SHUFFLE,
     SERVICE_FIELD_STATE,
     SERVICE_FIELD_VOLUME_LEVEL,
+    SERVICE_MEDIA_ENDED,
     SERVICE_PRELOAD_MEDIA,
     SERVICE_REPORT_STATE,
 )
@@ -70,4 +72,12 @@ def async_setup_services(hass: HomeAssistant) -> None:
             probatio.Optional(SERVICE_FIELD_SHUFFLE): cv.boolean,
         },
         func="async_report_state",
+    )
+    service.async_register_platform_entity_service(
+        hass,
+        DOMAIN,
+        SERVICE_MEDIA_ENDED,
+        entity_domain=MEDIA_PLAYER_DOMAIN,
+        schema={probatio.Optional(SERVICE_FIELD_MEDIA_CONTENT_ID): cv.string},
+        func="async_media_ended",
     )

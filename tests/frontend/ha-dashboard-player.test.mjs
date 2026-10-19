@@ -277,3 +277,66 @@ test("toggling diagnostics does not unload or replace an already playing source"
   }
   assert.equal(card._debug.loads, 0);
 });
+
+test("ended reports the finished item to the integration instead of stopping", async () => {
+  const { card, hass, connect, reports } = setup();
+  connect();
+  card.hass = hass;
+  await Promise.resolve();
+  const video = card._active.element;
+  video.ended = true;
+  video.dispatchEvent(new Event("ended"));
+  assert.equal(reports.length, 1);
+  const [domain, service, data] = reports[0];
+  assert.equal(domain, "ha_dashboard_player");
+  assert.equal(service, "media_ended");
+  assert.equal(data.entity_id, "media_player.test");
+  assert.equal(data.media_content_id, "https://example.invalid/video?authSig=secret");
+});
+
+test("ended is not reported by looping or non-reporting cards", async () => {
+  const { card, hass, connect, reports } = setup({ report_state: false });
+  connect();
+  card.hass = hass;
+  await Promise.resolve();
+  card._active.element.dispatchEvent(new Event("ended"));
+  assert.equal(reports.length, 0);
+
+  const looping = setup();
+  looping.connect();
+  looping.state.attributes.repeat = "one";
+  looping.card.hass = looping.hass;
+  await Promise.resolve();
+  assert.equal(looping.card._active.element.loop, true);
+  looping.card._active.element.dispatchEvent(new Event("ended"));
+  assert.equal(looping.reports.length, 0);
+});
+
+test("repeat all loops a single item but not a queue", () => {
+  const { card } = setup();
+  const video = card._elements.video;
+  card._applyPlayback(video, "playing", { repeat: "all", queue_size: 1 });
+  assert.equal(video.loop, true);
+  card._applyPlayback(video, "playing", { repeat: "all", queue_size: 3 });
+  assert.equal(video.loop, false);
+  card._applyPlayback(video, "playing", { repeat: "one", queue_size: 3 });
+  assert.equal(video.loop, true);
+  card._applyPlayback(video, "playing", { repeat: "off" });
+  assert.equal(video.loop, false);
+});
+
+test("a paused slideshow keeps the image on screen", async () => {
+  const { card, hass, connect } = setup();
+  connect();
+  const image = { state: "playing", attributes: { media_url: "https://example.invalid/a.jpg", media_kind: "image" } };
+  card.hass = { ...hass, states: { "media_player.test": image } };
+  await Promise.resolve();
+  assert.equal(card._active.kind, "image");
+  card.hass = { ...hass, states: { "media_player.test": { ...image, state: "paused" } } };
+  await Promise.resolve();
+  assert.equal(card._active?.kind, "image");
+  assert.ok(!card._elements.image.classes.has("hidden"));
+  card.hass = { ...hass, states: { "media_player.test": { ...image, state: "idle" } } };
+  await Promise.resolve();
+  assert.equal(card._active, null);
+});

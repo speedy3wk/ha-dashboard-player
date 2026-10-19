@@ -8,6 +8,9 @@
     },
     "report_state": {
       "service": "mdi:sync"
+    },
+    "media_ended": {
+      "service": "mdi:skip-next"
     }
   }
 }
