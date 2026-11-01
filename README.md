@@ -20,6 +20,12 @@ Play images, videos and audio from the Home Assistant **Media** panel, automatio
 ## Installation
 
 ### HACS (custom repository)
+HA Dashboard Player is not yet included in the HACS default repository list. With HACS already installed, use this button to open the repository in HACS and confirm adding it:
+
+[![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=speedy3wk&repository=ha-dashboard-player&category=integration)
+
+Alternatively, add it manually:
+
 1. Open HACS, then the menu (top right) > **Custom repositories**.
 2. Add `https://github.com/speedy3wk/ha-dashboard-player` with type **Integration**.
 3. Install **HA Dashboard Player** and restart Home Assistant.
