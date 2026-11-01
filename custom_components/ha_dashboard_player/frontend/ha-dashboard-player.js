@@ -1,6 +1,6 @@
 /* HA Dashboard Player card */
 
-const CARD_VERSION = "0.3.0";
+const CARD_VERSION = "0.3.1";
 const INTEGRATION = "ha_dashboard_player";
 const MEDIA_SOURCE_PREFIX = "media-source://";
 const SIGNED_URL_EXPIRES = 24 * 60 * 60;
