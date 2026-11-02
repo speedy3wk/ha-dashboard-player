@@ -1,5 +1,10 @@
 # HA Dashboard Player
 
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://www.hacs.xyz/docs/faq/custom_repositories/)
+[![Release](https://img.shields.io/github/v/release/speedy3wk/ha-dashboard-player.svg)](https://github.com/speedy3wk/ha-dashboard-player/releases)
+[![Validate](https://github.com/speedy3wk/ha-dashboard-player/actions/workflows/validate.yml/badge.svg)](https://github.com/speedy3wk/ha-dashboard-player/actions/workflows/validate.yml)
+[![Tests](https://github.com/speedy3wk/ha-dashboard-player/actions/workflows/tests.yml/badge.svg)](https://github.com/speedy3wk/ha-dashboard-player/actions/workflows/tests.yml)
+
 A Home Assistant custom integration that provides a virtual `media_player` entity and a Lovelace card for fullscreen playback on dashboards. It is built for HAOS kiosk screens on HDMI output with the [HAOS Chromium Kiosk App](https://github.com/speedy3wk/haos-chromium-kiosk), but works in any browser.
 
 Play images, videos and audio from the Home Assistant **Media** panel, automations or scripts. The card on the screen renders the media and reports progress back to Home Assistant.
