@@ -1,6 +1,6 @@
 [project]
 name = "ha-dashboard-player"
-version = "0.3.1"
+version = "0.3.2"
 requires-python = ">=3.14"
 
 [tool.ruff]
