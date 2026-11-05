@@ -1,6 +1,6 @@
 # HA Dashboard Player
 
-[![HACS Default](https://img.shields.io/badge/HACS-Default-orange.svg)](https://www.hacs.xyz/)
+[![Marketplace](https://img.shields.io/badge/Marketplace-Available-orange.svg)](https://www.home-assistant.io/integrations/marketplace/)
 [![Release](https://img.shields.io/github/v/release/speedy3wk/ha-dashboard-player.svg)](https://github.com/speedy3wk/ha-dashboard-player/releases)
 [![Validate](https://github.com/speedy3wk/ha-dashboard-player/actions/workflows/validate.yml/badge.svg)](https://github.com/speedy3wk/ha-dashboard-player/actions/workflows/validate.yml)
 [![Tests](https://github.com/speedy3wk/ha-dashboard-player/actions/workflows/tests.yml/badge.svg)](https://github.com/speedy3wk/ha-dashboard-player/actions/workflows/tests.yml)
@@ -24,7 +24,22 @@ Play images, videos and audio from the Home Assistant **Media** panel, automatio
 
 ## Installation
 
-### HACS (recommended)
+### Marketplace (recommended, Home Assistant 2026.11+)
+
+Since Home Assistant 2026.11, HACS is built in as the [Marketplace](https://www.home-assistant.io/integrations/marketplace/). No separate HACS installation is needed.
+
+1. Open **Settings > Marketplace** as an administrator and accept the community-content warning if prompted.
+2. Search for **HA Dashboard Player**, open its page and select **Install**.
+3. Follow the integration setup flow. If it does not open, go to **Settings > Devices & services > Add integration** and add **HA Dashboard Player** once per screen. Restart only if the Marketplace requests it.
+
+If the integration is not listed, select **Add from link** in the Marketplace, enter `https://github.com/speedy3wk/ha-dashboard-player` and select **Add**. Connect GitHub if prompted, then install it from its repository page.
+
+Existing HACS installations migrate automatically when updating to Home Assistant 2026.11; installed integrations and their update entities are kept. Integration updates still require a Home Assistant restart.
+
+### HACS (Home Assistant versions before 2026.11)
+
+For older supported Home Assistant versions, use the following legacy HACS instructions.
+
 HA Dashboard Player is available in the HACS default repository list. With HACS installed, open **HACS > Integrations > Explore & Download**, search for **HA Dashboard Player**, and install it. Restart Home Assistant, then go to **Settings > Devices & services > Add integration** and add **HA Dashboard Player** once per screen.
 
 [![Open HACS](https://img.shields.io/badge/Open-HACS-orange.svg)](https://my.home-assistant.io/redirect/hacs_dashboard/)
